@@ -6,14 +6,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setuptools.setup(
     name="resco-benchmark",
     version="1.0.0",
-    author="James Ault",
-    author_email="jault@tamu.edu",
     description="The Reinforcement Learning Benchmarks for Traffic Signal Control (RESCO)",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Pi-Star-Lab/RESCO",
+    url="https://gitlab.com/trafficsimulationframework/rl/resco-for-malaysia/",
     project_urls={
-        "Bug Tracker": "https://github.com/Pi-Star-Lab/RESCO/issues",
+        "Bug Tracker": "https://gitlab.com/trafficsimulationframework/rl/resco-for-malaysia/-/issues",
     },
     classifiers=[
         "Programming Language :: Python :: 3",
