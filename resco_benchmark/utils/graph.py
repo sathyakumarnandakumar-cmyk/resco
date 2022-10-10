@@ -15,7 +15,8 @@ map_title = {
     'ingolstadt21': 'Ingolstadt Region',
     'cologne1': 'Cologne Single Signal',
     'cologne3': 'Cologne Corridor',
-    'cologne8': 'Cologne Region'
+    'cologne8': 'Cologne Region',
+    'BB5B': 'Melaka city'
 }
 
 alg_name = {

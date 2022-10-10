@@ -20,11 +20,11 @@ def main():
     ap.add_argument("--procs", type=int, default=1)
     ap.add_argument("--map", type=str, default='ingolstadt1',
                     choices=['grid4x4', 'arterial4x4', 'ingolstadt1', 'ingolstadt7', 'ingolstadt21',
-                             'cologne1', 'cologne3', 'cologne8',
+                             'cologne1', 'cologne3', 'cologne8', 'BB5B',
                              ])
     ap.add_argument("--pwd", type=str, default=os.path.dirname(__file__))
     ap.add_argument("--log_dir", type=str, default=os.path.join(os.path.dirname(os.getcwd()), 'results' + os.sep))
-    ap.add_argument("--gui", type=bool, default=False)
+    ap.add_argument("--gui", type=bool, default=True)
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument("--tr", type=int, default=0)  # Can't multi-thread with libsumo, provide a trial number
     args = ap.parse_args()
@@ -70,9 +70,11 @@ def run_trial(args, trial):
     map_config = map_configs[args.map]
     num_steps_eps = int((map_config['end_time'] - map_config['start_time']) / map_config['step_length'])
     route = map_config['route']
-    if route is not None: route = os.path.join(args.pwd, route)
+    if route is not None:
+        route = os.path.join(args.pwd, route)
     if args.map == 'grid4x4' or args.map == 'arterial4x4':
-        if not os.path.exists(route): raise EnvironmentError("You must decompress environment files defining traffic flow")
+        if not os.path.exists(route):
+            raise EnvironmentError("You must decompress environment files defining traffic flow")
 
     env = MultiSignal(alg.__name__+'-tr'+str(trial),
                       args.map,

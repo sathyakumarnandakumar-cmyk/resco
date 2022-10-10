@@ -1327,4 +1327,78 @@ signal_configs = {
 			}
 		}
 	},
+	'BB5B': {
+		'phase_pairs': [[0, 1], [6, 7], [4, 5], [9, 10], [1, 7], [2, 3], [3, 4]],
+		'valid_acts': {
+			'PBB_Junc': {1: 0, 7: 1, 4: 2, 10: 3},
+			'INFMain_Junc': {1: 0, 7: 1, 3: 2},
+			'SIRIM_Junc': {1: 0, 4: 1, 7: 2, 10: 3},
+		},
+		'PBB_Junc': {
+			'lane_sets': {
+				'S-W': ['TMS2_2'],
+				'S-S': ['TMS2_1', 'TMS2_2'],
+				'S-E': ['TMS2_0'],
+				'W-N': ['SHW2_1'],
+				'W-W': ['SHW2_0', 'SHW2_1'],
+				'W-S': ['SHW2_0'],
+				'N-E': ['SHN2_2'],
+				'N-N': ['SHN2_1', 'SHN2_2'],
+				'N-W': ['SHN2_0'],
+				'E-S': ['HLE2_1'],
+				'E-E': ['HLE2_0', 'HLE2_1'],
+				'E-N': ['HLE2_0']
+			},
+			'downstream': {
+				'N': None,
+				'E': None,
+				'S': 'INFMain_Junc',
+				'W': None
+			}
+		},
+		'INFMain_Junc': {
+			'lane_sets': {
+				'S-W': [],
+				'S-S': ['FMS2_1', 'FMS2_2'],
+				'S-E': ['FMS2_0'],
+				'W-N': ['SKW21_0'],
+				'W-W': [],
+				'W-S': [],
+				'N-E': ['INFN2_2'],
+				'N-N': ['INFN2_0', 'INFN2_1'],
+				'N-W': [],
+				'E-S': [],
+				'E-E': [],
+				'E-N': []
+			},
+			'downstream': {
+				'N': 'PBB_Junc',
+				'E': None,
+				'S': 'SIRIM_Junc',
+				'W': None
+			}
+		},
+		'SIRIM_Junc': {
+			'lane_sets': {
+				'S-W': ['TCS2_2'],
+				'S-S': ['TCS2_1', 'TCS2_2'],
+				'S-E': ['TCS2_0'],
+				'W-N': ['SIRIMW21_1'],
+				'W-W': ['SIRIMW21_0', 'SIRIMW21_1'],
+				'W-S': [],
+				'N-E': ['SIRIMN3_1'],
+				'N-N': ['SIRIMN3_0', 'SIRIMN3_1'],
+				'N-W': [],
+				'E-S': ['TCE3_0'],
+				'E-E': ['TCE3_0'],
+				'E-N': []
+			},
+			'downstream': {
+				'N': 'INFMain_Junc',
+				'E': None,
+				'S': None,
+				'W': None
+			}
+		},
+	},
 }
