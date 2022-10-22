@@ -8,7 +8,7 @@ import pfrl.initializers
 from pfrl.agents import PPO
 from pfrl.policies import SoftmaxCategoricalHead
 
-from resco_benchmark.agents.agent import IndependentAgent, Agent
+from agents.agent import IndependentAgent, Agent
 
 
 def lecun_init(layer, gain=1):

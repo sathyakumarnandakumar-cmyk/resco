@@ -1,6 +1,6 @@
-from resco_benchmark.agents.agent import SharedAgent
-from resco_benchmark.agents.maxwave import WaveAgent
-from resco_benchmark.config.signal_config import signal_configs
+from agents.agent import SharedAgent
+from agents.maxwave import WaveAgent
+from config.signal_config import signal_configs
 
 
 class MAXPRESSURE(SharedAgent):

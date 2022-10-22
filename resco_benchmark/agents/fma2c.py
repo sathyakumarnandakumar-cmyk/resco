@@ -1,11 +1,11 @@
 import numpy as np
 
-from resco_benchmark.config.signal_config import signal_configs
-from resco_benchmark.agents.agent import Agent
+from config.signal_config import signal_configs
+from agents.agent import Agent
 
 try:
     import tensorflow as tf
-    from resco_benchmark.agents.ma2c import MA2CAgent
+    from agents.ma2c import MA2CAgent
 except ImportError:
     tf = None
     pass

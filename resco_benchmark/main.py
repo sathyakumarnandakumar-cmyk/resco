@@ -5,9 +5,9 @@ import multiprocessing as mp
 
 from multi_signal import MultiSignal
 import argparse
-from resco_benchmark.config.agent_config import agent_configs
-from resco_benchmark.config.map_config import map_configs
-from resco_benchmark.config.mdp_config import mdp_configs
+from config.agent_config import agent_configs
+from config.map_config import map_configs
+from config.mdp_config import mdp_configs
 
 
 def main():

@@ -1,7 +1,7 @@
 import numpy as np
 
-from resco_benchmark.agents.agent import Agent, IndependentAgent
-from resco_benchmark.config.signal_config import signal_configs
+from agents.agent import Agent, IndependentAgent
+from config.signal_config import signal_configs
 
 
 try:

@@ -4,9 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from resco_benchmark.agents.agent import SharedAgent
-from resco_benchmark.agents.pfrl_dqn import DQNAgent
-from resco_benchmark.config.signal_config import signal_configs
+from agents.agent import SharedAgent
+from agents.pfrl_dqn import DQNAgent
+from config.signal_config import signal_configs
 from pfrl.q_functions import DiscreteActionValueHead
 
 
