@@ -1,5 +1,5 @@
 # RESCO
-![Alt text](maps.png?raw=true "Provided SUMO scenarios")
+![Alt text](scenarios.png?raw=true "Provided SUMO scenarios")
 
 
 Source code implementing the Reinforcement Learning Benchmarks for Traffic Signal Control (RESCO).
