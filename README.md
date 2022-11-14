@@ -1,5 +1,5 @@
 # RESCO
-![Alt text](maps.png?raw=true "Provided SUMO scenarios")
+![Alt text](scenarios.png?raw=true "Provided SUMO scenarios")
 
 
 Source code implementing the Reinforcement Learning Benchmarks for Traffic Signal Control (RESCO).
@@ -18,9 +18,9 @@ mdp_config supplies constants to state and reward functions (e.g. for normalizat
 
 signal_config defines each signal of each SUMO scenario. Valid green phases are determined from the road network TLSLogic, yellow signals are inserted as required. phase_pairs gives the directional index of phase combinations following the order defined in TLSLogic. valid_acts provides a translation table for shared controllers with varying action definitions across multiple signals. For each signal inbound lanes are given by the direction of traffic. Finally, each signal defines which signals are downstream for the purposes of coordination (neighbors, pressure, etc.)
 
-An example command to train IDQN on the Ingolstadt region scenario is:
+An example command to train IDQN on the Melaka region scenario is:
 
-`python main.py --agent IDQN --map ingolstadt21`
+`python main.py --agent IDQN --map BB5B`
 
 SUMO scenarios are supplied in the environments directory. All scenarios are distributed under their original licenses. Information on the Cologne scenario can be found on (https://sumo.dlr.de/docs/Data/Scenarios/TAPASCologne.html). Information on Ingolstadt scenarios can be found at (https://github.com/silaslobo/InTAS). For more scenarios please see (https://sumo.dlr.de/docs/Data/Scenarios.html)
 
