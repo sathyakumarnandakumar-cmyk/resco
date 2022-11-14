@@ -1,4 +1,4 @@
-from resco_benchmark.agents.agent import IndependentAgent, Agent
+from agents.agent import IndependentAgent, Agent
 import random
 
 

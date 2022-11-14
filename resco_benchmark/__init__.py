@@ -15,8 +15,8 @@ __all__ = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__
 
 # Registration for EPyMARL
 from gym.envs.registration import register
-from resco_benchmark.multi_signal import MultiSignal
-from resco_benchmark.config.map_config import map_configs
+from multi_signal import MultiSignal
+from config.map_config import map_configs
 from resco_benchmark import states
 from resco_benchmark import rewards
 

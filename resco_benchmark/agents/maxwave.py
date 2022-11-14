@@ -1,6 +1,6 @@
 import numpy as np
-from resco_benchmark.agents.agent import SharedAgent, Agent
-from resco_benchmark.config.signal_config import signal_configs
+from agents.agent import SharedAgent, Agent
+from config.signal_config import signal_configs
 
 
 class MAXWAVE(SharedAgent):

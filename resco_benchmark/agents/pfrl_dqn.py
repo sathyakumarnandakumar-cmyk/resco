@@ -11,7 +11,7 @@ from pfrl.agents import DQN
 from pfrl.q_functions import DiscreteActionValueHead
 from pfrl.utils.contexts import evaluating
 
-from resco_benchmark.agents.agent import IndependentAgent, Agent
+from agents.agent import IndependentAgent, Agent
 
 
 class IDQN(IndependentAgent):
