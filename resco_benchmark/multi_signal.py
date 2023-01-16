@@ -4,6 +4,7 @@ import traci
 import sumolib
 import gym
 from traffic_signal import Signal
+from utils.BB5B_sumo_methods import get_the_routes_info
 
 
 class MultiSignal(gym.Env):
@@ -105,11 +106,49 @@ class MultiSignal(gym.Env):
         self.sumo_cmd = None
         print('Connection ID', self.connection_name)
 
+        if self.map_name == "BB5B":
+            self.INCOMING_ROADS_INFMain_Junc_DICT = {"N1": ["FMS2", "FMS1", "FMout"],
+                                                     "N2": ["SHS2", "SHS1"],
+                                                     "E": ["SKW21", "SKW2", "SKW1"],
+                                                     "S1": ["INFN2", "INFN1", "INFout"],
+                                                     "S2": ["TCN2", "TCN11", "TCN1", "TCEN"]
+                                                     }
+            self.INCOMING_ROADS_PBB_Junc_DICT = {"N": ["TMS2", "TMS1"],
+                                                 "E": ["SHW2", "SHW1"],
+                                                 "S1": ["SHN2", "SHN1", "HLout"],
+                                                 "S2": ["FMN2", "FMN1"],
+                                                 "W": ["HLE2", "HLE1"]
+                                                 }
+            self.INCOMING_ROADS_SIRIM_Junc_DICT = {"N1": ["TCS2", "TCS1", "TXout"],
+                                                   "N2": ["INFS2", "INFS1", "INFS11", "SKWS"],
+                                                   "E": ["SIRIMW21", "SIRIMW2", "SIRIMW1"],
+                                                   "S": ["SIRIMN3", "SIRIMN2", "SIRIMN1"],
+                                                   "W": ["TCE3", "TCE2", "TCE1"]
+                                                   }
+
+            self.current_total_waiting_time_on_incoming_lanes = 0
+            self.old_total_waiting_time_vehicles_on_incoming_lanes = 0
+            self.old_number_of_vehicles_that_passed_through_intersections = 0
+            self.total_waiting_time_vehicles_on_incoming_lanes = 0
+            self.old_total_wait = 0
+            self.current_number_of_vehicles_that_passed_through_the_intersections_in_last_steps = 0
+            self._waiting_times = {}
+            self.waiting_time_vehicles_on_incoming_lanes = []
+            self._reward_list_in_episode = []
+            self._reward_mean_in_episode = []
+            self.total_delays_of_all_vehicles_from_all_routes = []
+            self.total_real_travel_times_all_vehicles_from_all_routes = []
+            self.total_ideal_travel_times_all_vehicles_from_all_routes = []
+
+            self.waiting_time_all_vehicles_in_simulation = []
+            self.routes_info = {}
+            self.vehicles_on_simulation = {}
+
     def step_sim(self):
         # The monaco scenario expects .25s steps instead of 1s, account for that here.
         for _ in range(self.step_ratio):
             self.sumo.simulationStep()
-        
+
     def reset(self):
         if self.run != 0:
             if not self.libsumo: traci.switch(self.connection_name)
@@ -164,6 +203,9 @@ class MultiSignal(gym.Env):
             for ts in self.ts_order:
                 rets.append(states[ts])
             return rets
+
+        if self.map_name == "BB5B":
+            self.routes_info = get_the_routes_info()
 
         return self.state_fn(self.signals)
 
