@@ -260,6 +260,7 @@ class MultiSignal(gym.Env):
              'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
              'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
              'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
+             'calculate_average_delta_of_delays_after_action': round(self.calculate_delta_of_delays(), 5),
         }
 
         if self.gymma:
@@ -459,3 +460,71 @@ class MultiSignal(gym.Env):
                 )
 
         return delta_of_delays
+
+    def calculate_delta_of_delays(self):
+        delta_of_delays = []
+        sim_step = traci.simulation.getTime()
+        delta_time = self.step_length - self.yellow_length
+        for veh_id in self.vehicles_on_simulation:
+            if (
+                    self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
+                    != sim_step
+                    and not self.vehicles_on_simulation[veh_id][
+                "last_calculate_delta_of_delays"
+            ]
+            ):
+                delta_of_delays.append(
+                    self.vehicles_on_simulation[veh_id]["max_speed"]
+                    * (
+                            (
+                                (
+                                        (
+                                                sim_step
+                                                - self.vehicles_on_simulation[veh_id]["time"][
+                                                    "time_of_appearance"
+                                                ]
+                                                - delta_time
+                                        )
+                                        / self.vehicles_on_simulation[veh_id]["total_distance"]
+                                )
+                                if self.vehicles_on_simulation[veh_id]["total_distance"] != 0
+                                else 0
+                            )
+                            - (
+                                (
+                                        (
+                                                sim_step
+                                                - self.vehicles_on_simulation[veh_id]["time"][
+                                                    "time_of_appearance"
+                                                ]
+                                        )
+                                        / (
+                                            traci.vehicle.getDistance(veh_id)
+                                            if traci.vehicle.getDistance(veh_id) != 0
+                                            else 0.0001
+                                        )
+                                )
+                                if "time_of_disappearance"
+                                   not in self.vehicles_on_simulation[veh_id]["time"]
+                                else self.vehicles_on_simulation[veh_id]["time"][
+                                         "time_of_total_journey"
+                                     ]
+                                     / self.routes_info[
+                                         self.vehicles_on_simulation[veh_id]["routeID"]
+                                     ]["length"]
+                            )
+                    )
+                )
+                if (
+                        "time_of_disappearance"
+                        not in self.vehicles_on_simulation[veh_id]["time"].keys()
+                ):
+                    self.vehicles_on_simulation[veh_id][
+                        "total_distance"
+                    ] = traci.vehicle.getDistance(veh_id)
+                else:
+                    self.vehicles_on_simulation[veh_id][
+                        "last_calculate_delta_of_delays"
+                    ] = True
+
+        return mean(delta_of_delays) if len(delta_of_delays) != 0 else 0
