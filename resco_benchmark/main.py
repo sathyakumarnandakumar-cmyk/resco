@@ -102,7 +102,7 @@ def run_trial(args, trial):
         done = False
         while not done:
             act = agent.act(obs)
-            obs, rew, done, info = env.step(act)
+            obs, rew, done, eps, info = env.step(act)
             agent.observe(obs, rew, done, info)
     env.close()
 

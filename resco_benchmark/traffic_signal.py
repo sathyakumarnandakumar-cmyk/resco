@@ -245,3 +245,6 @@ class Signal:
                 if distance <= max_distance:  # Detectors have a max range
                     detectable.append(vehicle)
         return detectable
+
+    def get_total_queued(self):
+        return sum([traci.lane.getLastStepHaltingNumber(lane) for lane in self.lanes])
