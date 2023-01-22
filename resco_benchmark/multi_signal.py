@@ -142,6 +142,7 @@ class MultiSignal(gym.Env):
             self.total_ideal_travel_times_all_vehicles_from_all_routes = []
 
             self.waiting_time_all_vehicles_in_simulation = []
+            self.lanes_and_junctions_ids = []
             self.routes_info = {}
             self.vehicles_on_simulation = {}
             self.vehicles_on_incoming_lanes = dict()
@@ -213,6 +214,8 @@ class MultiSignal(gym.Env):
 
         if self.map_name == "BB5B":
             self.routes_info = get_the_routes_info()
+            # get id all lanes and junctions
+            self.lanes_and_junctions_ids = list(traci.lane.getIDList())
 
         return self.state_fn(self.signals)
 
@@ -252,6 +255,7 @@ class MultiSignal(gym.Env):
              'current_number_of_vehicles': traci.vehicle.getIDCount(),
              'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
              'waiting_time_for_the_last_time_step_on_the_incoming_lanes': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
+             'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
         }
 
         if self.gymma:
@@ -396,3 +400,15 @@ class MultiSignal(gym.Env):
                             self.vehicles_on_outcoming_lanes[veh_id][signal_id] = {
                                 veh_lane: sim_step
                             }
+
+    def get_total_queued_in_simulation(self):
+        queue_list = []
+        for id in self.lanes_and_junctions_ids:
+            car_list = traci.lane.getLastStepVehicleIDs(id)
+            for car_id in car_list:
+                # new vehicles that appear in the simulation and have zero speed should not be considered in the queue
+                if traci.vehicle.getSpeed(car_id) <= 0.1 and traci.vehicle.getWaitingTime(car_id) != 0:
+                    queue_list.append(car_id)
+        # return sum([traci.lane.getLastStepHaltingNumber(lane_id) for lane_id in self.lanes_and_junctions_ids] if
+        # traci.lane)
+        return len(queue_list)
