@@ -1,4 +1,6 @@
 import os
+from statistics import mean
+
 import numpy as np
 import traci
 import sumolib
@@ -257,6 +259,7 @@ class MultiSignal(gym.Env):
              'waiting_time_for_the_last_time_step_on_the_incoming_lanes': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
              'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
              'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
+             'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
         }
 
         if self.gymma:
@@ -416,3 +419,43 @@ class MultiSignal(gym.Env):
 
     def get_total_waiting_time_in_simulation(self):
         return sum([int(traci.lane.getWaitingTime(lane_id)) for lane_id in self.lanes_and_junctions_ids])
+
+    def calculate_current_delays_of_all_vehicles_in_simulation(self):
+        delta_of_delays = []
+        sim_step = traci.simulation.getTime()
+        for veh_id in self.vehicles_on_simulation:
+            if (
+                    self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
+                    != sim_step
+                    and not self.vehicles_on_simulation[veh_id][
+                "last_calculate_delta_of_delays"
+            ]
+            ):
+                delta_of_delays.append(
+                    self.vehicles_on_simulation[veh_id]["max_speed"]
+                    * (
+                        (
+                                (
+                                        sim_step
+                                        - self.vehicles_on_simulation[veh_id]["time"][
+                                            "time_of_appearance"
+                                        ]
+                                )
+                                / (
+                                    traci.vehicle.getDistance(veh_id)
+                                    if traci.vehicle.getDistance(veh_id) != 0
+                                    else 0.0001
+                                )
+                        )
+                        if "time_of_disappearance"
+                           not in self.vehicles_on_simulation[veh_id]["time"]
+                        else self.vehicles_on_simulation[veh_id]["time"][
+                                 "time_of_total_journey"
+                             ]
+                             / self.routes_info[self.vehicles_on_simulation[veh_id]["routeID"]][
+                                 "length"
+                             ]
+                    )
+                )
+
+        return delta_of_delays
