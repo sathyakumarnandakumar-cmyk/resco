@@ -1,9 +1,12 @@
 import os
+from statistics import mean, stdev
+
 import numpy as np
 import traci
 import sumolib
 import gym
 from traffic_signal import Signal
+from utils.BB5B_sumo_methods import get_the_routes_info
 
 
 class MultiSignal(gym.Env):
@@ -28,6 +31,7 @@ class MultiSignal(gym.Env):
         self.step_ratio = step_ratio
         self.connection_name = run_name + '-' + map_name + '---' + state_fn.__name__ + '-' + reward_fn.__name__
         self.map_name = map_name
+        self.run = None
 
         # Run some steps in the simulation with default light configurations to detect phases
         if self.route is not None:
@@ -105,11 +109,56 @@ class MultiSignal(gym.Env):
         self.sumo_cmd = None
         print('Connection ID', self.connection_name)
 
+        if self.map_name == "BB5B":
+            self.INCOMING_ROADS_INFMain_Junc_DICT = {"N1": ["FMS2", "FMS1", "FMout"],
+                                                     "N2": ["SHS2", "SHS1"],
+                                                     "E": ["SKW21", "SKW2", "SKW1"],
+                                                     "S1": ["INFN2", "INFN1", "INFout"],
+                                                     "S2": ["TCN2", "TCN11", "TCN1", "TCEN"]
+                                                     }
+            self.INCOMING_ROADS_PBB_Junc_DICT = {"N": ["TMS2", "TMS1"],
+                                                 "E": ["SHW2", "SHW1"],
+                                                 "S1": ["SHN2", "SHN1", "HLout"],
+                                                 "S2": ["FMN2", "FMN1"],
+                                                 "W": ["HLE2", "HLE1"]
+                                                 }
+            self.INCOMING_ROADS_SIRIM_Junc_DICT = {"N1": ["TCS2", "TCS1", "TXout"],
+                                                   "N2": ["INFS2", "INFS1", "INFS11", "SKWS"],
+                                                   "E": ["SIRIMW21", "SIRIMW2", "SIRIMW1"],
+                                                   "S": ["SIRIMN3", "SIRIMN2", "SIRIMN1"],
+                                                   "W": ["TCE3", "TCE2", "TCE1"]
+                                                   }
+
+            self.current_total_waiting_time_on_incoming_lanes = 0
+            self.old_total_waiting_time_vehicles_on_incoming_lanes = 0
+            self.old_number_of_vehicles_that_passed_through_intersections = 0
+            self.total_waiting_time_vehicles_on_incoming_lanes = 0
+            self.old_total_wait = 0
+            self.current_number_of_vehicles_that_passed_through_the_intersections_in_last_steps = 0
+            self._waiting_times = {}
+            self.waiting_time_vehicles_on_incoming_lanes = []
+            self._reward_list_in_episode = []
+            self._reward_mean_in_episode = []
+            self.total_delays_of_all_vehicles_from_all_routes = []
+            self.total_real_travel_times_all_vehicles_from_all_routes = []
+            self.total_ideal_travel_times_all_vehicles_from_all_routes = []
+
+            self.waiting_time_all_vehicles_in_simulation = []
+            self.lanes_and_junctions_ids = []
+            self.routes_info = {}
+            self.vehicles_on_simulation = {}
+            self.vehicles_on_incoming_lanes = dict()
+            self.vehicles_on_outcoming_lanes = dict()
+
     def step_sim(self):
         # The monaco scenario expects .25s steps instead of 1s, account for that here.
         for _ in range(self.step_ratio):
             self.sumo.simulationStep()
-        
+            if self.map_name == "BB5B" and self.run is not None:
+                self.update_waiting_time_all_vehicles_in_simulation()
+                self.update_waiting_time_vehicles_on_incoming_lanes()
+                self.update_waiting_time_vehicles_on_outcoming_lanes()
+
     def reset(self):
         if self.run != 0:
             if not self.libsumo: traci.switch(self.connection_name)
@@ -165,6 +214,11 @@ class MultiSignal(gym.Env):
                 rets.append(states[ts])
             return rets
 
+        if self.map_name == "BB5B":
+            self.routes_info = get_the_routes_info()
+            # get id all lanes and junctions
+            self.lanes_and_junctions_ids = list(traci.lane.getIDList())
+
         return self.state_fn(self.signals)
 
     def step(self, act):
@@ -194,13 +248,55 @@ class MultiSignal(gym.Env):
         self.calc_metrics(rewards)
 
         done = self.sumo.simulation.getTime() >= self.end_time
+        if done:
+            self.calculate_travel_time_and_delays()
+            count_of_vehicles_completing_journey = self.get_number_of_vehicles_completing_journey()
+            total_time_of_journey = self.get_total_time_of_journey()
+
+            info = {
+                'step_time': self.sumo.simulation.getTime(),
+                'observation': observations,
+                'action': act,
+                'reward': rewards,
+                'count_of_all_vehicles_in_simulation': len(self.vehicles_on_simulation.keys()),
+                'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
+                'waiting_time_for_the_last_time_step_on_the_incoming_lanes': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
+                'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
+                'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
+                'total_waiting_time_on_the_incoming_lanes_in_episode': sum(self.waiting_time_vehicles_on_incoming_lanes),
+                'count_of_vehicles_completing_journey': count_of_vehicles_completing_journey,
+                'total_time_of_journey': total_time_of_journey,
+                'average_time_of_journey': round(total_time_of_journey/count_of_vehicles_completing_journey if count_of_vehicles_completing_journey != 0 else 0, 5),
+                'total_sum_delays_of_all_vehicles_from_all_routes': round(sum(self.total_delays_of_all_vehicles_from_all_routes), 5),
+                'total_average_delays_of_all_vehicles_from_all_routes': round(mean(self.total_delays_of_all_vehicles_from_all_routes) if len(self.total_delays_of_all_vehicles_from_all_routes) != 0 else 0, 5),
+                'total_average_delays_of_all_vehicles_completing_journey_and_not_completing_journey': round(mean(self.total_delays_of_all_vehicles_from_all_routes + self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.total_delays_of_all_vehicles_from_all_routes + self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
+                'total_average_delays_real_times_by_ideal_times': round(sum(self.total_real_travel_times_all_vehicles_from_all_routes) / sum(self.total_ideal_travel_times_all_vehicles_from_all_routes), 5) if len(self.total_ideal_travel_times_all_vehicles_from_all_routes) != 0 else 0,
+                'total_average_delays_with_weights': round(self.get_total_average_delays_with_weights(), 5),
+            }
+        else:
+            current_waiting_time_vehicles_on_incoming_lanes = sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids])
+            self.waiting_time_vehicles_on_incoming_lanes.append(current_waiting_time_vehicles_on_incoming_lanes)
+            info = {
+                'step_time': self.sumo.simulation.getTime(),
+                 'observation': observations,
+                 'action': act,
+                 'reward': rewards,
+                 'current_number_of_vehicles': traci.vehicle.getIDCount(),
+                 'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
+                 'waiting_time_for_the_last_time_step_on_the_incoming_lanes': current_waiting_time_vehicles_on_incoming_lanes,
+                 'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
+                 'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
+                 'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
+                 'calculate_average_delta_of_delays_after_action': round(self.calculate_delta_of_delays(), 5),
+            }
+
         if self.gymma:
             obss, rww = list(), list()
             for ts in self.ts_order:
                 obss.append(observations[ts])
                 rww.append(rewards[ts])
             return obss, rww, [done], {'eps': self.run}
-        return observations, rewards, done, {'eps': self.run}
+        return observations, rewards, done, {'eps': self.run}, info
 
     def calc_metrics(self, rewards):
         queue_lengths = dict()
@@ -238,3 +334,406 @@ class MultiSignal(gym.Env):
         if not self.libsumo: traci.switch(self.connection_name)
         traci.close()
         self.save_metrics()
+
+    # methods for BB5B scenario
+    def update_waiting_time_all_vehicles_in_simulation(self):
+        vehicle_list = traci.vehicle.getIDList()
+        sim_step = traci.simulation.getTime()
+
+        for veh_id in vehicle_list:
+            veh_lane = traci.vehicle.getLaneID(veh_id)
+            accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
+            if veh_id not in self.vehicles_on_simulation:
+                self.vehicles_on_simulation[veh_id] = {
+                    "lanes": {veh_lane: accumulated_waiting_time},
+                    "time": {"time_of_appearance": sim_step},
+                    "routeID": traci.vehicle.getRouteID(veh_id),
+                    "type": traci.vehicle.getTypeID(veh_id),
+                    "max_speed": traci.vehicle.getMaxSpeed(veh_id),
+                    "ideal_travel_time": self.routes_info[
+                                             traci.vehicle.getRouteID(veh_id)
+                                         ]["length"]
+                                         / traci.vehicle.getMaxSpeed(veh_id),
+                    "total_distance": traci.vehicle.getDistance(veh_id),
+                    "last_calculate_delta_of_delays": False,
+                }
+            else:
+                self.vehicles_on_simulation[veh_id]["lanes"][
+                    veh_lane
+                ] = accumulated_waiting_time - sum(
+                    [
+                        self.vehicles_on_simulation[veh_id]["lanes"][lane]
+                        for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys()
+                        if lane != veh_lane
+                    ]
+                )
+
+        # check if vehicle is not disappeared from road map
+        for veh_id in list(self.vehicles_on_simulation.keys()):
+            if (
+                    veh_id not in vehicle_list
+                    and "time_of_disappearance"
+                    not in self.vehicles_on_simulation[veh_id]["time"].keys()
+            ):
+                self.vehicles_on_simulation[veh_id]["time"][
+                    "time_of_disappearance"
+                ] = sim_step
+                self.vehicles_on_simulation[veh_id]["time"]["time_of_total_journey"] = (
+                        self.vehicles_on_simulation[veh_id]["time"]["time_of_disappearance"]
+                        - self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
+                )
+
+    def get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(self, signal_id: str):
+        wait_time_per_lane = []
+        for lane in self.signals[signal_id].lanes:
+            veh_list = [*traci.lane.getLastStepVehicleIDs(lane)]
+            wait_time = 0.0
+            for veh_id in veh_list:
+                veh_lane = traci.vehicle.getLaneID(veh_id)
+                accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
+                if veh_id not in self.vehicles_on_incoming_lanes:
+                    self.vehicles_on_incoming_lanes[veh_id] = {veh_lane: traci.vehicle.getWaitingTime(veh_id)}
+                else:
+                    self.vehicles_on_incoming_lanes[veh_id][veh_lane] = accumulated_waiting_time - sum([self.vehicles_on_simulation[veh_id]["lanes"][lane] for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys() if lane != veh_lane])
+                wait_time += traci.vehicle.getWaitingTime(veh_id)
+            wait_time_per_lane.append(wait_time)
+        return sum(wait_time_per_lane)
+
+    def update_waiting_time_vehicles_on_incoming_lanes(self):
+        for signal in self.signal_ids:
+            for lane in self.signals[signal].lanes:
+                veh_list = traci.lane.getLastStepVehicleIDs(lane)
+                for veh_id in veh_list:
+                    veh_lane = traci.vehicle.getLaneID(veh_id)
+                    accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
+                    if veh_id not in self.vehicles_on_incoming_lanes:
+                        self.vehicles_on_incoming_lanes[veh_id] = {veh_lane: traci.vehicle.getWaitingTime(veh_id)}
+                    else:
+                        self.vehicles_on_incoming_lanes[veh_id][veh_lane] = accumulated_waiting_time - sum([self.vehicles_on_simulation[veh_id]["lanes"][lane] for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys() if lane != veh_lane])
+
+    def update_waiting_time_vehicles_on_outcoming_lanes(self):
+        sim_step = traci.simulation.getTime()
+        for signal_id in self.signal_ids:
+            for lane in self.signals[signal_id].outbound_lanes:
+                veh_list = traci.lane.getLastStepVehicleIDs(lane)
+                for veh_id in veh_list:
+                    veh_lane = traci.vehicle.getLaneID(veh_id)
+                    if veh_id not in self.vehicles_on_outcoming_lanes:
+                        self.vehicles_on_outcoming_lanes[veh_id] = {
+                            signal_id: {
+                                veh_lane: sim_step
+                            }
+                        }
+                    else:
+                        if signal_id in self.vehicles_on_outcoming_lanes[veh_id]:
+                            if veh_lane not in self.vehicles_on_outcoming_lanes[veh_id][signal_id]:
+                                self.vehicles_on_outcoming_lanes[veh_id][signal_id][veh_lane] = sim_step
+                        else:
+                            self.vehicles_on_outcoming_lanes[veh_id][signal_id] = {
+                                veh_lane: sim_step
+                            }
+
+    def get_total_queued_in_simulation(self):
+        queue_list = []
+        for id in self.lanes_and_junctions_ids:
+            car_list = traci.lane.getLastStepVehicleIDs(id)
+            for car_id in car_list:
+                # new vehicles that appear in the simulation and have zero speed should not be considered in the queue
+                if traci.vehicle.getSpeed(car_id) <= 0.1 and traci.vehicle.getWaitingTime(car_id) != 0:
+                    queue_list.append(car_id)
+        # return sum([traci.lane.getLastStepHaltingNumber(lane_id) for lane_id in self.lanes_and_junctions_ids] if
+        # traci.lane)
+        return len(queue_list)
+
+    def get_total_waiting_time_in_simulation(self):
+        return sum([int(traci.lane.getWaitingTime(lane_id)) for lane_id in self.lanes_and_junctions_ids])
+
+    def calculate_current_delays_of_all_vehicles_in_simulation(self):
+        delta_of_delays = []
+        sim_step = traci.simulation.getTime()
+        for veh_id in self.vehicles_on_simulation:
+            if (
+                    self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
+                    != sim_step
+                    and not self.vehicles_on_simulation[veh_id][
+                "last_calculate_delta_of_delays"
+            ]
+            ):
+                delta_of_delays.append(
+                    self.vehicles_on_simulation[veh_id]["max_speed"]
+                    * (
+                        (
+                                (
+                                        sim_step
+                                        - self.vehicles_on_simulation[veh_id]["time"][
+                                            "time_of_appearance"
+                                        ]
+                                )
+                                / (
+                                    traci.vehicle.getDistance(veh_id)
+                                    if traci.vehicle.getDistance(veh_id) != 0
+                                    else 0.0001
+                                )
+                        )
+                        if "time_of_disappearance"
+                           not in self.vehicles_on_simulation[veh_id]["time"]
+                        else self.vehicles_on_simulation[veh_id]["time"][
+                                 "time_of_total_journey"
+                             ]
+                             / self.routes_info[self.vehicles_on_simulation[veh_id]["routeID"]][
+                                 "length"
+                             ]
+                    )
+                )
+
+        return delta_of_delays
+
+    def calculate_delta_of_delays(self):
+        delta_of_delays = []
+        sim_step = traci.simulation.getTime()
+        delta_time = self.step_length - self.yellow_length
+        for veh_id in self.vehicles_on_simulation:
+            if (
+                    self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
+                    != sim_step
+                    and not self.vehicles_on_simulation[veh_id][
+                "last_calculate_delta_of_delays"
+            ]
+            ):
+                delta_of_delays.append(
+                    self.vehicles_on_simulation[veh_id]["max_speed"]
+                    * (
+                            (
+                                (
+                                        (
+                                                sim_step
+                                                - self.vehicles_on_simulation[veh_id]["time"][
+                                                    "time_of_appearance"
+                                                ]
+                                                - delta_time
+                                        )
+                                        / self.vehicles_on_simulation[veh_id]["total_distance"]
+                                )
+                                if self.vehicles_on_simulation[veh_id]["total_distance"] != 0
+                                else 0
+                            )
+                            - (
+                                (
+                                        (
+                                                sim_step
+                                                - self.vehicles_on_simulation[veh_id]["time"][
+                                                    "time_of_appearance"
+                                                ]
+                                        )
+                                        / (
+                                            traci.vehicle.getDistance(veh_id)
+                                            if traci.vehicle.getDistance(veh_id) != 0
+                                            else 0.0001
+                                        )
+                                )
+                                if "time_of_disappearance"
+                                   not in self.vehicles_on_simulation[veh_id]["time"]
+                                else self.vehicles_on_simulation[veh_id]["time"][
+                                         "time_of_total_journey"
+                                     ]
+                                     / self.routes_info[
+                                         self.vehicles_on_simulation[veh_id]["routeID"]
+                                     ]["length"]
+                            )
+                    )
+                )
+                if (
+                        "time_of_disappearance"
+                        not in self.vehicles_on_simulation[veh_id]["time"].keys()
+                ):
+                    self.vehicles_on_simulation[veh_id][
+                        "total_distance"
+                    ] = traci.vehicle.getDistance(veh_id)
+                else:
+                    self.vehicles_on_simulation[veh_id][
+                        "last_calculate_delta_of_delays"
+                    ] = True
+
+        return mean(delta_of_delays) if len(delta_of_delays) != 0 else 0
+
+    def get_number_of_vehicles_completing_journey(self):
+        return len(
+            [
+                self.vehicles_on_simulation[veh]["time"]["time_of_total_journey"]
+                for veh in self.vehicles_on_simulation
+                if "time_of_total_journey" in self.vehicles_on_simulation[veh]["time"]
+            ]
+        )
+
+    def get_total_time_of_journey(self):
+        return sum(
+            [
+                self.vehicles_on_simulation[veh]["time"]["time_of_total_journey"]
+                for veh in self.vehicles_on_simulation
+                if "time_of_total_journey" in self.vehicles_on_simulation[veh]["time"]
+            ]
+        )
+
+    def calculate_travel_time_and_delays(self):
+        for veh_id in self.vehicles_on_simulation:
+            if "time_of_total_journey" in self.vehicles_on_simulation[veh_id]["time"]:
+                self.routes_info[self.vehicles_on_simulation[veh_id]["routeID"]][
+                    "vehicle_type"
+                ][self.vehicles_on_simulation[veh_id]["type"]]["real"]["vehicle_id"].append(
+                    veh_id
+                )
+                self.routes_info[self.vehicles_on_simulation[veh_id]["routeID"]][
+                    "vehicle_type"
+                ][self.vehicles_on_simulation[veh_id]["type"]]["real"][
+                    "total_travel_time"
+                ].append(
+                    self.vehicles_on_simulation[veh_id]["time"]["time_of_total_journey"]
+                )
+                self.routes_info[self.vehicles_on_simulation[veh_id]["routeID"]][
+                    "total_travel_time_of_all_vehicles"
+                ].append(
+                    self.vehicles_on_simulation[veh_id]["time"]["time_of_total_journey"]
+                )
+                self.routes_info[self.vehicles_on_simulation[veh_id]["routeID"]][
+                    "total_ideal_travel_time_of_all_vehicles"
+                ].append(self.vehicles_on_simulation[veh_id]["ideal_travel_time"])
+
+        for route_id in self.routes_info.keys():
+            for veh_type in self.routes_info[route_id]["vehicle_type"]:
+                self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                    "number_of_vehicles"
+                ] = len(
+                    self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                        "vehicle_id"
+                    ]
+                )
+                self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                    "average_travel_time"
+                ] = (
+                    mean(
+                        self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                            "total_travel_time"
+                        ]
+                    )
+                    if len(
+                        self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                            "vehicle_id"
+                        ]
+                    )
+                       != 0
+                    else 0
+                )
+                self.routes_info[route_id]["vehicle_type"][veh_type]["real"]["delays"][
+                    "total"
+                ] = [
+                    delays
+                    / self.routes_info[route_id]["vehicle_type"][veh_type]["ideal"][
+                        "travel_time"
+                    ]
+                    for delays in self.routes_info[route_id]["vehicle_type"][veh_type][
+                        "real"
+                    ]["total_travel_time"]
+                ]
+                self.routes_info[route_id]["vehicle_type"][veh_type]["real"]["delays"][
+                    "average"
+                ] = (
+                    mean(
+                        self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                            "delays"
+                        ]["total"]
+                    )
+                    if len(
+                        self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                            "delays"
+                        ]["total"]
+                    )
+                       != 0
+                    else []
+                )
+                self.routes_info[route_id]["total_delays_of_all_vehicles"] = (
+                        self.routes_info[route_id]["total_delays_of_all_vehicles"]
+                        + self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                            "delays"
+                        ]["total"]
+                )
+
+        for route_id in self.routes_info.keys():
+            self.routes_info[route_id][
+                "total_number_of_all_vehicles_generated-ThruPut_Scheduled"
+            ] = sum(route_id in veh_id for veh_id in self.vehicles_on_simulation.keys())
+            self.routes_info[route_id][
+                "total_number_of_all_vehicles_completing_journey-ThruPut_Actual"
+            ] = sum(
+                self.routes_info[route_id]["vehicle_type"][veh_type]["real"][
+                    "number_of_vehicles"
+                ]
+                for veh_type in self.routes_info[route_id]["vehicle_type"]
+            )
+            self.routes_info[route_id]["throughput_of_the_route-ThruPut_Idx"] = (
+                self.routes_info[route_id][
+                    "total_number_of_all_vehicles_completing_journey-ThruPut_Actual"
+                ]
+                / self.routes_info[route_id][
+                    "total_number_of_all_vehicles_generated-ThruPut_Scheduled"
+                ]
+                if self.routes_info[route_id][
+                       "total_number_of_all_vehicles_completing_journey-ThruPut_Actual"
+                   ]
+                   != 0
+                else 0
+            )
+            self.routes_info[route_id]["total_average_travel_time_of_all_vehicles"] = (
+                mean(self.routes_info[route_id]["total_travel_time_of_all_vehicles"])
+                if len(self.routes_info[route_id]["total_travel_time_of_all_vehicles"]) != 0
+                else 0
+            )
+            self.routes_info[route_id][
+                "total_average_delays_of_all_vehicles-Delay_Idx_Average"
+            ] = (
+                mean(self.routes_info[route_id]["total_delays_of_all_vehicles"])
+                if len(self.routes_info[route_id]["total_delays_of_all_vehicles"]) != 0
+                else 0
+            )
+            self.routes_info[route_id]["Delay_Idx_StDev"] = (
+                stdev(self.routes_info[route_id]["total_delays_of_all_vehicles"])
+                if len(self.routes_info[route_id]["total_delays_of_all_vehicles"]) > 1
+                else 0
+            )
+            self.routes_info[route_id][
+                "total_average_delays_of_all_vehicles_with_weights"
+            ] = (
+                    len(self.routes_info[route_id]["total_travel_time_of_all_vehicles"])
+                    / self.get_number_of_vehicles_completing_journey()
+                    if self.get_number_of_vehicles_completing_journey() != 0
+                    else 0
+                ) * (
+                    mean(self.routes_info[route_id]["total_delays_of_all_vehicles"])
+                    if len(self.routes_info[route_id]["total_travel_time_of_all_vehicles"]) != 0
+                    else 0
+                )
+
+        # calculate the total delay of all vehicles on all routes, which completed its journey
+        # for index, delays in enumerate([self.routes[route_id]['total_delays_of_all_vehicles'] for route_id in self.routes.keys() if len(self.routes[route_id]['total_delays_of_all_vehicles'])]):
+        #    self.total_delays_of_all_vehicles_from_all_routes.extend(delays)
+        for route_id in self.routes_info.keys():
+            if len(self.routes_info[route_id]["total_delays_of_all_vehicles"]) != 0:
+                self.total_delays_of_all_vehicles_from_all_routes.extend(
+                    self.routes_info[route_id]["total_delays_of_all_vehicles"]
+                )
+                self.total_real_travel_times_all_vehicles_from_all_routes.extend(
+                    self.routes_info[route_id]["total_travel_time_of_all_vehicles"]
+                )
+                self.total_ideal_travel_times_all_vehicles_from_all_routes.extend(
+                    self.routes_info[route_id]["total_ideal_travel_time_of_all_vehicles"]
+                )
+
+    def get_total_average_delays_with_weights(self):
+        total_delays = []
+        for route_id in self.routes_info.keys():
+            if len(self.routes_info[route_id]["total_delays_of_all_vehicles"]) != 0:
+                total_delays.append(
+                    self.routes_info[route_id][
+                        "total_average_delays_of_all_vehicles_with_weights"
+                    ]
+                )
+        return sum(total_delays)
