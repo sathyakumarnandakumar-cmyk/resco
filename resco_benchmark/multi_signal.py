@@ -341,10 +341,16 @@ class MultiSignal(gym.Env):
         traci.close()
         self.save_metrics()
 
+    @property
+    def sim_step(self):
+        """
+        Return current simulation second on SUMO
+        """
+        return traci.simulation.getTime()
+
     # methods for BB5B scenario
     def update_waiting_time_all_vehicles_in_simulation(self):
         vehicle_list = traci.vehicle.getIDList()
-        sim_step = traci.simulation.getTime()
 
         for veh_id in vehicle_list:
             veh_lane = traci.vehicle.getLaneID(veh_id)
@@ -352,7 +358,7 @@ class MultiSignal(gym.Env):
             if veh_id not in self.vehicles_on_simulation:
                 self.vehicles_on_simulation[veh_id] = {
                     "lanes": {veh_lane: accumulated_waiting_time},
-                    "time": {"time_of_appearance": sim_step},
+                    "time": {"time_of_appearance": self.sim_step},
                     "routeID": traci.vehicle.getRouteID(veh_id),
                     "type": traci.vehicle.getTypeID(veh_id),
                     "max_speed": traci.vehicle.getMaxSpeed(veh_id),
@@ -383,7 +389,7 @@ class MultiSignal(gym.Env):
             ):
                 self.vehicles_on_simulation[veh_id]["time"][
                     "time_of_disappearance"
-                ] = sim_step
+                ] = self.sim_step
                 self.vehicles_on_simulation[veh_id]["time"]["time_of_total_journey"] = (
                         self.vehicles_on_simulation[veh_id]["time"]["time_of_disappearance"]
                         - self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
@@ -418,7 +424,6 @@ class MultiSignal(gym.Env):
                         self.vehicles_on_incoming_lanes[veh_id][veh_lane] = accumulated_waiting_time - sum([self.vehicles_on_simulation[veh_id]["lanes"][lane] for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys() if lane != veh_lane])
 
     def update_waiting_time_vehicles_on_outcoming_lanes(self):
-        sim_step = traci.simulation.getTime()
         for signal_id in self.signal_ids:
             for lane in self.signals[signal_id].outbound_lanes:
                 veh_list = traci.lane.getLastStepVehicleIDs(lane)
@@ -427,16 +432,16 @@ class MultiSignal(gym.Env):
                     if veh_id not in self.vehicles_on_outcoming_lanes:
                         self.vehicles_on_outcoming_lanes[veh_id] = {
                             signal_id: {
-                                veh_lane: sim_step
+                                veh_lane: self.sim_step
                             }
                         }
                     else:
                         if signal_id in self.vehicles_on_outcoming_lanes[veh_id]:
                             if veh_lane not in self.vehicles_on_outcoming_lanes[veh_id][signal_id]:
-                                self.vehicles_on_outcoming_lanes[veh_id][signal_id][veh_lane] = sim_step
+                                self.vehicles_on_outcoming_lanes[veh_id][signal_id][veh_lane] = self.sim_step
                         else:
                             self.vehicles_on_outcoming_lanes[veh_id][signal_id] = {
-                                veh_lane: sim_step
+                                veh_lane: self.sim_step
                             }
 
     def get_total_queued_in_simulation(self):
@@ -456,11 +461,10 @@ class MultiSignal(gym.Env):
 
     def calculate_current_delays_of_all_vehicles_in_simulation(self):
         delta_of_delays = []
-        sim_step = traci.simulation.getTime()
         for veh_id in self.vehicles_on_simulation:
             if (
                     self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
-                    != sim_step
+                    != self.sim_step
                     and not self.vehicles_on_simulation[veh_id][
                 "last_calculate_delta_of_delays"
             ]
@@ -470,7 +474,7 @@ class MultiSignal(gym.Env):
                     * (
                         (
                                 (
-                                        sim_step
+                                        self.sim_step
                                         - self.vehicles_on_simulation[veh_id]["time"][
                                             "time_of_appearance"
                                         ]
@@ -496,12 +500,11 @@ class MultiSignal(gym.Env):
 
     def calculate_delta_of_delays(self):
         delta_of_delays = []
-        sim_step = traci.simulation.getTime()
         delta_time = self.step_length - self.yellow_length
         for veh_id in self.vehicles_on_simulation:
             if (
                     self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
-                    != sim_step
+                    != self.sim_step
                     and not self.vehicles_on_simulation[veh_id][
                 "last_calculate_delta_of_delays"
             ]
@@ -512,7 +515,7 @@ class MultiSignal(gym.Env):
                             (
                                 (
                                         (
-                                                sim_step
+                                                self.sim_step
                                                 - self.vehicles_on_simulation[veh_id]["time"][
                                                     "time_of_appearance"
                                                 ]
@@ -526,7 +529,7 @@ class MultiSignal(gym.Env):
                             - (
                                 (
                                         (
-                                                sim_step
+                                                self.sim_step
                                                 - self.vehicles_on_simulation[veh_id]["time"][
                                                     "time_of_appearance"
                                                 ]
