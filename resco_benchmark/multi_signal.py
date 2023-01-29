@@ -248,7 +248,7 @@ class MultiSignal(gym.Env):
         self.calc_metrics(rewards)
 
         done = self.sumo.simulation.getTime() >= self.end_time
-        if done:
+        if done and self.map_name == "BB5B":
             self.calculate_travel_time_and_delays()
             count_of_vehicles_completing_journey = self.get_number_of_vehicles_completing_journey()
             total_time_of_journey = self.get_total_time_of_journey()
@@ -273,7 +273,7 @@ class MultiSignal(gym.Env):
                 'total_average_delays_real_times_by_ideal_times': round(sum(self.total_real_travel_times_all_vehicles_from_all_routes) / sum(self.total_ideal_travel_times_all_vehicles_from_all_routes), 5) if len(self.total_ideal_travel_times_all_vehicles_from_all_routes) != 0 else 0,
                 'total_average_delays_with_weights': round(self.get_total_average_delays_with_weights(), 5),
             }
-        else:
+        elif not done and self.map_name == "BB5B":
             current_waiting_time_vehicles_on_incoming_lanes = sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids])
             self.waiting_time_vehicles_on_incoming_lanes.append(current_waiting_time_vehicles_on_incoming_lanes)
             info = {
@@ -288,6 +288,12 @@ class MultiSignal(gym.Env):
                  'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
                  'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
                  'calculate_average_delta_of_delays_after_action': round(self.calculate_delta_of_delays(), 5),
+            }
+        else:
+            info = {
+                'observation': observations,
+                'action': act,
+                'reward': rewards,
             }
 
         if self.gymma:
