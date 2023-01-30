@@ -116,13 +116,12 @@ def run_trial(args, trial):
             )
 
     PARAMS_ALGORITHM = {
-        "env": "",  # TODO
         "algorithm": args.agent,
-        "policy": "",  # TODO
-        "total_timesteps": "",
+        "number_episodes": args.eps,
+        "map": args.map
     }  # TODO
     run = neptune.init(
-        api_token=None,
+        api_token=None,             #add API TOKEN
         project="TensorCell/Malaysia",
         name="dqn_sumo-v0",
         description="Apply DQN algorithm to the sumo-v0 environment",
@@ -272,13 +271,13 @@ def log_metrics(buf_infos, run, done, mode):
         ].log(
             buf_infos["waiting_time_all_vehicles_for_the_last_time_step_in_simulation"]
         )
-        run[
-            "metrics/"
-            + mode
-            + "/total_waiting_time_all_vehicles_in_simulation_in_episode"
-        ].log(
-            buf_infos["total_waiting_time_all_vehicles_in_simulation_in_episode"]
-        )  # not present in Pawel's metrics
+        # run[
+        #     "metrics/"
+        #     + mode
+        #     + "/total_waiting_time_all_vehicles_in_simulation_in_episode"
+        # ].log(
+        #     buf_infos["total_waiting_time_all_vehicles_in_simulation_in_episode"]
+        # )  # not present in Pawel's metrics
         run[
             "metrics/" + mode + "/total_waiting_time_on_the_incoming_lanes_in_episode"
         ].log(buf_infos["total_waiting_time_on_the_incoming_lanes_in_episode"])
