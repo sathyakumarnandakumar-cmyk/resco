@@ -121,7 +121,6 @@ def run_trial(args, trial):
         "number_episodes": args.eps,
         "map": args.map
     }  # TODO
-    print(agent_configs[args.agent])
     run = neptune.init_run(
         project="pgora/Malaysia2",
         name=f"{args.agent}-sumo-v0",
@@ -131,11 +130,11 @@ def run_trial(args, trial):
             f"{args.agent}",
             "stable-baselines3",
             # "10 episodes - train, 1 episode - validation on new own generated file",
-            # "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
-            # "no new vehicles after 1 hour",
+            "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
+            "no new vehicles after 1 hour",
             f"Reward: {agent_configs[args.agent]['reward']}",
             # "5e5 steps",
-            # "7-8 am",
+            "7-8 am",
             # "aggregating data from lanes on the same road",
         ],
     )
@@ -188,11 +187,10 @@ def run_trial(args, trial):
 def log_metrics(buf_infos, run, done, mode):
 
     if not done:
-        # run["metrics/" + mode + "/learning_rate"].log(self.model.learning_rate)           #ignore LR for now
+        # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)           #ignore LR for now
         run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
         run["metrics/" + mode + "/action"].log(str(buf_infos["action"]))#.tolist()))
         run["metrics/" + mode + "/reward"].log(buf_infos["reward"])
-        # run["metrics/" + mode + "/training_file_number"].log(buf_infos['training_file_number'])    #not present in Pawel's metrics
         run["metrics/" + mode + "/current_number_of_vehicles"].log(
             buf_infos["current_number_of_vehicles"]
         )
@@ -205,11 +203,6 @@ def log_metrics(buf_infos, run, done, mode):
                 "number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes"
             ]
         )
-        run[
-            "metrics/"
-            + mode
-            + "/waiting_time_for_the_last_time_step_on_the_incoming_lanes"
-        ].log(buf_infos["waiting_time_for_the_last_time_step_on_the_incoming_lanes"])
         run[
             "metrics/"
             + mode
@@ -229,15 +222,17 @@ def log_metrics(buf_infos, run, done, mode):
         run["metrics/" + mode + "/calculate_average_delta_of_delays_after_action"].log(
             buf_infos["calculate_average_delta_of_delays_after_action"]
         )
+        run["metrics/" + mode + "/number_of_vehicles_that_passed_through_the_intersections_in_last_steps"].log(
+            buf_infos["number_of_vehicles_that_passed_through_the_intersections_in_last_steps"]
+        )
         run[
             "metrics/" + mode + "/current_average_delays_of_all_vehicles_in_simulation"
         ].log(buf_infos["current_average_delays_of_all_vehicles_in_simulation"])
     else:
-        # run["metrics/" + mode + "/learning_rate"].log(self.model.learning_rate)             #ignore LR for now
+        # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)             #ignore LR for now
         run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
         run["metrics/" + mode + "/action"].log(str(buf_infos["action"].tolist()))
         run["metrics/" + mode + "/reward"].log(buf_infos["reward"])
-        # run["metrics/" + mode + "/reward_mean_in_episode"].log(buf_infos['reward_mean_in_episode'])    #not present in Pawel's metrics
         run["metrics/" + mode + "/count_of_all_vehicles_in_simulation"].log(
             buf_infos["count_of_all_vehicles_in_simulation"]
         )
@@ -250,11 +245,6 @@ def log_metrics(buf_infos, run, done, mode):
                 "number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes"
             ]
         )
-        run[
-            "metrics/"
-            + mode
-            + "/waiting_time_for_the_last_time_step_on_the_incoming_lanes"
-        ].log(buf_infos["waiting_time_for_the_last_time_step_on_the_incoming_lanes"])
         run[
             "metrics/"
             + mode
@@ -281,6 +271,9 @@ def log_metrics(buf_infos, run, done, mode):
         run[
             "metrics/" + mode + "/total_waiting_time_on_the_incoming_lanes_in_episode"
         ].log(buf_infos["total_waiting_time_on_the_incoming_lanes_in_episode"])
+        run[
+            "metrics/" + mode + "/total_waiting_time_on_the_incoming_lanes_in_episode2"
+            ].log(buf_infos["total_waiting_time_on_the_incoming_lanes_in_episode2"])
         run["metrics/" + mode + "/count_of_vehicles_completing_journey"].log(
             buf_infos["count_of_vehicles_completing_journey"]
         )
@@ -311,41 +304,42 @@ def log_metrics(buf_infos, run, done, mode):
                 "total_average_delays_of_all_vehicles_completing_journey_and_not_completing_journey"
             ]
         )
-        # chosen_routes = [
-        #         "Infout-HLin",
-        #         "PBBN-FMin",
-        #         "PBBN-SirimS",
-        #         "PBBN-SirimW",
-        #         "PBBN-SKE",
-        #         "PBBW-FMin",
-        #         "PBBW-SKE",
-        #         "SirimE-HLin",
-        #         "SirimS-HLin",
-        #         "SirimS-PBBN",
-        #         "SirimW-HLin",
-        #         "SirimW-SirimE",
-        #         "SKE-HLin",
-        #         "SKE-PBBN",
-        #         ]
-        # for route_id in buf_infos['routes'].keys():
-        #     if route_id in chosen_routes :
-        #         run["metrics/" + mode + "/routes/" + route_id + "/length"].log(buf_infos['routes'][route_id]['length'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_number_of_all_vehicles_generated-ThruPut_Scheduled"].log(buf_infos['routes'][route_id]['total_number_of_all_vehicles_generated-ThruPut_Scheduled'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_number_of_all_vehicles_completing_journey-ThruPut_Actual"].log(buf_infos['routes'][route_id]['total_number_of_all_vehicles_completing_journey-ThruPut_Actual'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/throughput_of_the_route-ThruPut_Idx"].log(buf_infos['routes'][route_id]['throughput_of_the_route-ThruPut_Idx'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_travel_time_of_all_vehicles"].log(str(buf_infos['routes'][route_id]['total_travel_time_of_all_vehicles']))
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_average_travel_time_of_all_vehicles"].log(buf_infos['routes'][route_id]['total_average_travel_time_of_all_vehicles'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_delays_of_all_vehicles"].log(str(buf_infos['routes'][route_id]['total_delays_of_all_vehicles']))
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_average_delays_of_all_vehicles-Delay_Idx_Average"].log(buf_infos['routes'][route_id]['total_average_delays_of_all_vehicles-Delay_Idx_Average'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/Delay_Idx_StDev"].log(buf_infos['routes'][route_id]['Delay_Idx_StDev'])
-        #         run["metrics/" + mode + "/routes/" + route_id + "/total_average_delays_of_all_vehicles_with_weights"].log(buf_infos['routes'][route_id]['total_average_delays_of_all_vehicles_with_weights'])
-        #         for veh_type in buf_infos['routes'][route_id]['vehicle_type']:
-        #             run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/ideal/travel_time"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['ideal']['travel_time'])
-        #             run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/number_of_vehicles"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['number_of_vehicles'])
-        #             run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/total_travel_time"].log(str(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['total_travel_time']) if len(self.model.env.buf_infos[0]['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else "0")
-        #             run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/average_travel_time"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['average_travel_time'])
-        #             run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/total"].log(str(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['total']) if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else "0")
-        #             run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/average"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['average'] if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else 0)
+        chosen_routes = [
+                "Infout-HLin",
+                "PBBN-FMin",
+                "PBBN-SirimS",
+                "PBBN-SirimW",
+                "PBBN-SKE",
+                "PBBW-FMin",
+                "PBBW-SKE",
+                "SirimE-HLin",
+                "SirimS-HLin",
+                "SirimS-PBBN",
+                "SirimW-HLin",
+                "SirimW-SirimE",
+                "SKE-HLin",
+                "SKE-PBBN",
+                ]
+        for route_id in buf_infos['routes'].keys():
+            if route_id in chosen_routes:
+                run["metrics/" + mode + "/routes/" + route_id + "/length"].log(buf_infos['routes'][route_id]['length'])
+                run["metrics/" + mode + "/routes/" + route_id + "/total_number_of_all_vehicles_generated-ThruPut_Scheduled"].log(buf_infos['routes'][route_id]['total_number_of_all_vehicles_generated-ThruPut_Scheduled'])
+                run["metrics/" + mode + "/routes/" + route_id + "/total_number_of_all_vehicles_completing_journey-ThruPut_Actual"].log(buf_infos['routes'][route_id]['total_number_of_all_vehicles_completing_journey-ThruPut_Actual'])
+                run["metrics/" + mode + "/routes/" + route_id + "/throughput_of_the_route-ThruPut_Idx"].log(buf_infos['routes'][route_id]['throughput_of_the_route-ThruPut_Idx'])
+                run["metrics/" + mode + "/routes/" + route_id + "/total_travel_time_of_all_vehicles"].log(str(buf_infos['routes'][route_id]['total_travel_time_of_all_vehicles']))
+                run["metrics/" + mode + "/routes/" + route_id + "/total_average_travel_time_of_all_vehicles"].log(buf_infos['routes'][route_id]['total_average_travel_time_of_all_vehicles'])
+                run["metrics/" + mode + "/routes/" + route_id + "/total_delays_of_all_vehicles"].log(str(buf_infos['routes'][route_id]['total_delays_of_all_vehicles']))
+                run["metrics/" + mode + "/routes/" + route_id + "/total_average_delays_of_all_vehicles-Delay_Idx_Average"].log(buf_infos['routes'][route_id]['total_average_delays_of_all_vehicles-Delay_Idx_Average'])
+                run["metrics/" + mode + "/routes/" + route_id + "/Delay_Idx_StDev"].log(buf_infos['routes'][route_id]['Delay_Idx_StDev'])
+                run["metrics/" + mode + "/routes/" + route_id + "/total_average_delays_of_all_vehicles_with_weights"].log(buf_infos['routes'][route_id]['total_average_delays_of_all_vehicles_with_weights'])
+                for veh_type in buf_infos['routes'][route_id]['vehicle_type']:
+                    run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/ideal/travel_time"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['ideal']['travel_time'])
+                    run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/number_of_vehicles"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['number_of_vehicles'])
+                    run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/total_travel_time"].log(str(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['total_travel_time']) if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else "0")
+                    run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/average_travel_time"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['average_travel_time'])
+                    run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/total"].log(str(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['total']) if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else "0")
+                    run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/average"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['average'] if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else 0)
+
 
 if __name__ == "__main__":
     main()
