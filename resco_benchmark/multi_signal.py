@@ -275,6 +275,7 @@ class MultiSignal(gym.Env):
                 'total_average_delays_of_all_vehicles_completing_journey_and_not_completing_journey': round(mean(self.total_delays_of_all_vehicles_from_all_routes + self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.total_delays_of_all_vehicles_from_all_routes + self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
                 'total_average_delays_real_times_by_ideal_times': round(sum(self.total_real_travel_times_all_vehicles_from_all_routes) / sum(self.total_ideal_travel_times_all_vehicles_from_all_routes), 5) if len(self.total_ideal_travel_times_all_vehicles_from_all_routes) != 0 else 0,
                 'total_average_delays_with_weights': round(self.get_total_average_delays_with_weights(), 5),
+                "routes": self.routes_info
             }
         elif not done and self.map_name == "BB5B":
             current_waiting_time_vehicles_on_incoming_lanes = sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids])
@@ -292,7 +293,6 @@ class MultiSignal(gym.Env):
                 'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
                 'calculate_average_delta_of_delays_after_action': round(self.calculate_delta_of_delays(), 5),
                 'number_of_vehicles_that_passed_through_the_intersections_in_last_steps': self.calculate_the_number_of_vehicles_that_passed_through_the_intersections_in_last_steps(),
-                "routes": self.routes_info
             }
         else:
             info = {
