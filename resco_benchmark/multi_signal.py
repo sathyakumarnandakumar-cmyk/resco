@@ -156,8 +156,9 @@ class MultiSignal(gym.Env):
             self.sumo.simulationStep()
             if self.map_name == "BB5B" and self.run is not None:
                 self.update_waiting_time_all_vehicles_in_simulation()
+                self.check_if_vehicle_has_not_disappeared_from_environment()
                 self.update_waiting_time_vehicles_on_incoming_lanes()
-                self.update_waiting_time_vehicles_on_outcoming_lanes()
+                self.check_if_vehicle_pass_the_junctions()
 
     def reset(self):
         if self.run != 0:
@@ -183,7 +184,8 @@ class MultiSignal(gym.Env):
                           os.path.join(self.log_dir, self.connection_name, 'tripinfo_' + str(self.run) + '.xml'),
                           '--tripinfo-output.write-unfinished',
                           '--no-step-log', 'True',
-                          '--no-warnings', 'True']
+                          '--no-warnings', 'True',
+                          '--waiting-time-memory=4000']
         if self.libsumo:
             traci.start(self.sumo_cmd)
             self.sumo = traci
@@ -247,23 +249,24 @@ class MultiSignal(gym.Env):
 
         self.calc_metrics(rewards)
 
-        done = self.sumo.simulation.getTime() >= self.end_time
+        done = self.sim_step >= self.end_time
         if done and self.map_name == "BB5B":
             self.calculate_travel_time_and_delays()
             count_of_vehicles_completing_journey = self.get_number_of_vehicles_completing_journey()
             total_time_of_journey = self.get_total_time_of_journey()
 
             info = {
-                'step_time': self.sumo.simulation.getTime(),
+                'step_time': self.sim_step,
                 'observation': observations,
                 'action': act,
                 'reward': rewards,
                 'count_of_all_vehicles_in_simulation': len(self.vehicles_on_simulation.keys()),
                 'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
-                'waiting_time_for_the_last_time_step_on_the_incoming_lanes': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
+                # 'waiting_time_for_the_last_time_step_on_the_incoming_lanes': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
                 'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
                 'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
                 'total_waiting_time_on_the_incoming_lanes_in_episode': sum(self.waiting_time_vehicles_on_incoming_lanes),
+                'total_waiting_time_on_the_incoming_lanes_in_episode2': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
                 'count_of_vehicles_completing_journey': count_of_vehicles_completing_journey,
                 'total_time_of_journey': total_time_of_journey,
                 'average_time_of_journey': round(total_time_of_journey/count_of_vehicles_completing_journey if count_of_vehicles_completing_journey != 0 else 0, 5),
@@ -277,17 +280,19 @@ class MultiSignal(gym.Env):
             current_waiting_time_vehicles_on_incoming_lanes = sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids])
             self.waiting_time_vehicles_on_incoming_lanes.append(current_waiting_time_vehicles_on_incoming_lanes)
             info = {
-                'step_time': self.sumo.simulation.getTime(),
-                 'observation': observations,
-                 'action': act,
-                 'reward': rewards,
-                 'current_number_of_vehicles': traci.vehicle.getIDCount(),
-                 'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
-                 'waiting_time_for_the_last_time_step_on_the_incoming_lanes': current_waiting_time_vehicles_on_incoming_lanes,
-                 'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
-                 'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
-                 'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
-                 'calculate_average_delta_of_delays_after_action': round(self.calculate_delta_of_delays(), 5),
+                'step_time': self.sim_step,
+                'observation': observations,
+                'action': act,
+                'reward': rewards,
+                'current_number_of_vehicles': traci.vehicle.getIDCount(),
+                'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
+                # 'waiting_time_for_the_last_time_step_on_the_incoming_lanes': current_waiting_time_vehicles_on_incoming_lanes,
+                'number_of_all_halting_vehicles_for_the_last_time_step_in_simulation': self.get_total_queued_in_simulation(),
+                'waiting_time_all_vehicles_for_the_last_time_step_in_simulation': round(self.get_total_waiting_time_in_simulation(), 5),
+                'current_average_delays_of_all_vehicles_in_simulation': round(mean(self.calculate_current_delays_of_all_vehicles_in_simulation()) if len(self.calculate_current_delays_of_all_vehicles_in_simulation()) != 0 else 0, 5),
+                'calculate_average_delta_of_delays_after_action': round(self.calculate_delta_of_delays(), 5),
+                'number_of_vehicles_that_passed_through_the_intersections_in_last_steps': self.calculate_the_number_of_vehicles_that_passed_through_the_intersections_in_last_steps(),
+                "routes": self.routes_info
             }
         else:
             info = {
@@ -317,7 +322,7 @@ class MultiSignal(gym.Env):
             queue_lengths[signal_id] = queue_length
             max_queues[signal_id] = max_queue
         self.metrics.append({
-            'step': self.sumo.simulation.getTime(),
+            'step': self.sim_step,
             'reward': rewards,
             'max_queues': max_queues,
             'queue_lengths': queue_lengths
@@ -350,22 +355,26 @@ class MultiSignal(gym.Env):
 
     # methods for BB5B scenario
     def update_waiting_time_all_vehicles_in_simulation(self):
-        vehicle_list = traci.vehicle.getIDList()
+        """
+        This method is called in every sim step for BB5B scenario and updates
+        the waiting times of all vehicles present in the environment.
+        """
+
+        vehicle_list = [*traci.vehicle.getIDList()]
 
         for veh_id in vehicle_list:
             veh_lane = traci.vehicle.getLaneID(veh_id)
             accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
             if veh_id not in self.vehicles_on_simulation:
+                route_id = traci.vehicle.getRouteID(veh_id)
+                max_speed = traci.vehicle.getMaxSpeed(veh_id)
                 self.vehicles_on_simulation[veh_id] = {
                     "lanes": {veh_lane: accumulated_waiting_time},
                     "time": {"time_of_appearance": self.sim_step},
-                    "routeID": traci.vehicle.getRouteID(veh_id),
+                    "routeID": route_id,
                     "type": traci.vehicle.getTypeID(veh_id),
-                    "max_speed": traci.vehicle.getMaxSpeed(veh_id),
-                    "ideal_travel_time": self.routes_info[
-                                             traci.vehicle.getRouteID(veh_id)
-                                         ]["length"]
-                                         / traci.vehicle.getMaxSpeed(veh_id),
+                    "max_speed": max_speed,
+                    "ideal_travel_time": self.routes_info[route_id]["length"] / max_speed,
                     "total_distance": traci.vehicle.getDistance(veh_id),
                     "last_calculate_delta_of_delays": False,
                 }
@@ -380,8 +389,24 @@ class MultiSignal(gym.Env):
                     ]
                 )
 
-        # check if vehicle is not disappeared from road map
-        for veh_id in list(self.vehicles_on_simulation.keys()):
+    def calculate_the_number_of_vehicles_that_passed_through_the_intersections_in_last_steps(self):
+        veh_passed_list = []
+        for veh_id in self.vehicles_on_outcoming_lanes.keys():
+            for signal_id in self.vehicles_on_outcoming_lanes[veh_id].keys():
+                if list(self.vehicles_on_outcoming_lanes[veh_id][signal_id].values())[0] in np.arange((self.sim_step - self.step_length), self.sim_step):
+                    # insert into the table the indexes of vehicles that appeared on exit lanes
+                    # with intersections within the delta_time interval, e.g. 5 seconds
+                    veh_passed_list.append(veh_id)
+        return len(veh_passed_list)
+
+    def check_if_vehicle_has_not_disappeared_from_environment(self):
+        """
+        This method is called in every sim step for BB5B scenario and checks
+         if the vehicle has not disappeared from the road map.
+        """
+        vehicle_list = [*traci.vehicle.getIDList()]
+
+        for veh_id in self.vehicles_on_simulation.keys():
             if (
                     veh_id not in vehicle_list
                     and "time_of_disappearance"
@@ -397,11 +422,10 @@ class MultiSignal(gym.Env):
 
     def get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(self, signal_id: str):
         wait_time_per_lane = []
-        for lane in self.signals[signal_id].lanes:
-            veh_list = [*traci.lane.getLastStepVehicleIDs(lane)]
+        for veh_lane in self.signals[signal_id].lanes:
+            veh_list = [*traci.lane.getLastStepVehicleIDs(veh_lane)]
             wait_time = 0.0
             for veh_id in veh_list:
-                veh_lane = traci.vehicle.getLaneID(veh_id)
                 accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
                 if veh_id not in self.vehicles_on_incoming_lanes:
                     self.vehicles_on_incoming_lanes[veh_id] = {veh_lane: traci.vehicle.getWaitingTime(veh_id)}
@@ -413,35 +437,32 @@ class MultiSignal(gym.Env):
 
     def update_waiting_time_vehicles_on_incoming_lanes(self):
         for signal in self.signal_ids:
-            for lane in self.signals[signal].lanes:
-                veh_list = traci.lane.getLastStepVehicleIDs(lane)
+            for in_lane in self.signals[signal].lanes:
+                # get the ids of the vehicles for the last time step on the given lane
+                veh_list = list(traci.lane.getLastStepVehicleIDs(in_lane))
                 for veh_id in veh_list:
-                    veh_lane = traci.vehicle.getLaneID(veh_id)
                     accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
                     if veh_id not in self.vehicles_on_incoming_lanes:
-                        self.vehicles_on_incoming_lanes[veh_id] = {veh_lane: traci.vehicle.getWaitingTime(veh_id)}
+                        self.vehicles_on_incoming_lanes[veh_id] = {in_lane: traci.vehicle.getWaitingTime(veh_id)}
                     else:
-                        self.vehicles_on_incoming_lanes[veh_id][veh_lane] = accumulated_waiting_time - sum([self.vehicles_on_simulation[veh_id]["lanes"][lane] for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys() if lane != veh_lane])
+                        self.vehicles_on_incoming_lanes[veh_id][in_lane] = accumulated_waiting_time - sum([self.vehicles_on_simulation[veh_id]["lanes"][lane] for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys() if lane != in_lane])
 
-    def update_waiting_time_vehicles_on_outcoming_lanes(self):
+    def check_if_vehicle_pass_the_junctions(self):
         for signal_id in self.signal_ids:
-            for lane in self.signals[signal_id].outbound_lanes:
-                veh_list = traci.lane.getLastStepVehicleIDs(lane)
+            for out_lane in self.signals[signal_id].outbound_lanes:
+                veh_list = list(traci.lane.getLastStepVehicleIDs(out_lane))
                 for veh_id in veh_list:
-                    veh_lane = traci.vehicle.getLaneID(veh_id)
                     if veh_id not in self.vehicles_on_outcoming_lanes:
                         self.vehicles_on_outcoming_lanes[veh_id] = {
+                            # get time of appearance on oncoming lane for veh_id
                             signal_id: {
-                                veh_lane: self.sim_step
+                                out_lane: self.sim_step
                             }
                         }
                     else:
-                        if signal_id in self.vehicles_on_outcoming_lanes[veh_id]:
-                            if veh_lane not in self.vehicles_on_outcoming_lanes[veh_id][signal_id]:
-                                self.vehicles_on_outcoming_lanes[veh_id][signal_id][veh_lane] = self.sim_step
-                        else:
+                        if signal_id not in self.vehicles_on_outcoming_lanes[veh_id].keys():
                             self.vehicles_on_outcoming_lanes[veh_id][signal_id] = {
-                                veh_lane: self.sim_step
+                                out_lane: self.sim_step
                             }
 
     def get_total_queued_in_simulation(self):
