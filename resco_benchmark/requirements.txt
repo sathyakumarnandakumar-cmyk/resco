@@ -1,0 +1,9 @@
+gym==0.21.0
+matplotlib==3.4.3
+numpy==1.21.2
+pfrl==0.3.0
+PyYAML==6.0
+sumolib==1.16.0
+tensorflow==2.9.1
+torch==1.13.1
+traci==1.16.0
