@@ -260,6 +260,7 @@ class MultiSignal(gym.Env):
                 'observation': observations,
                 'action': act,
                 'reward': rewards,
+                'eps': self.run,
                 'count_of_all_vehicles_in_simulation': len(self.vehicles_on_simulation.keys()),
                 'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
                 # 'waiting_time_for_the_last_time_step_on_the_incoming_lanes': sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids]),
@@ -285,6 +286,7 @@ class MultiSignal(gym.Env):
                 'observation': observations,
                 'action': act,
                 'reward': rewards,
+                'eps': self.run,
                 'current_number_of_vehicles': traci.vehicle.getIDCount(),
                 'number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes': sum(self.signals[signal_id].get_total_queued() for signal_id in self.signal_ids),
                 # 'waiting_time_for_the_last_time_step_on_the_incoming_lanes': current_waiting_time_vehicles_on_incoming_lanes,
@@ -299,6 +301,7 @@ class MultiSignal(gym.Env):
                 'observation': observations,
                 'action': act,
                 'reward': rewards,
+                'eps': self.run,
             }
 
         if self.gymma:

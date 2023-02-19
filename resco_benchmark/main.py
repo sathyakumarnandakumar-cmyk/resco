@@ -2,6 +2,7 @@ import pathlib
 import os
 import multiprocessing as mp
 import neptune.new as neptune
+from neptune.new import Run
 
 from multi_signal import MultiSignal
 import argparse
@@ -116,30 +117,6 @@ def run_trial(args, trial):
                 "You must decompress environment files defining traffic flow"
             )
 
-    PARAMS_ALGORITHM = {
-        "algorithm": args.agent,
-        "number_episodes": args.eps,
-        "map": args.map
-    }  # TODO
-    run = neptune.init_run(
-        project="pgora/Malaysia2",
-        name=f"{args.agent}-sumo-v0",
-        description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
-        tags=[
-            "sumo-v0",
-            f"{args.agent}",
-            "stable-baselines3",
-            # "10 episodes - train, 1 episode - validation on new own generated file",
-            "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
-            "no new vehicles after 1 hour",
-            f"Reward: {agent_configs[args.agent]['reward']}",
-            # "5e5 steps",
-            "7-8 am",
-            # "aggregating data from lanes on the same road",
-        ],
-    )
-    run["parameters"] = PARAMS_ALGORITHM
-    print("Run initiated")
     env = MultiSignal(
         alg.__name__ + "-tr" + str(trial),
         args.map,
@@ -172,6 +149,32 @@ def run_trial(args, trial):
             len(env.phases[key]) if key in env.phases else None,
         ]
     agent = alg(agt_config, obs_act, args.map, trial)
+    run = None
+    if args.map == "BB5B":
+        PARAMS_ALGORITHM = {
+            "algorithm": args.agent,
+            "number_episodes": args.eps,
+            "map": args.map
+        }  # TODO
+        run = neptune.init_run(
+            api_token=None,
+            project="pgora/Malaysia2",
+            name=f"{args.agent}-sumo-v0",
+            description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
+            tags=[
+                "sumo-v0",
+                f"{args.agent}",
+                "stable-baselines3",
+                # "10 episodes - train, 1 episode - validation on new own generated file",
+                "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
+                "no new vehicles after 1 hour",
+                f"Reward: {agent_configs[args.agent]['reward']}",
+                # "5e5 steps",
+                "7-8 am",
+                # "aggregating data from lanes on the same road",
+            ],
+        )
+        run["parameters"] = PARAMS_ALGORITHM
 
     for _ in range(args.eps):
         obs = env.reset()
@@ -179,18 +182,25 @@ def run_trial(args, trial):
         while not done:
             act = agent.act(obs)
             obs, rew, done, eps, info = env.step(act)
-            log_metrics(buf_infos=info, run=run, done=done, mode="train")
+            if args.map == "BB5B":
+                log_metrics(buf_infos=info, run=run, done=done, mode="train")
             agent.observe(obs, rew, done, info)
     env.close()
 
 
-def log_metrics(buf_infos, run, done, mode):
+def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
 
     if not done:
         # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)           #ignore LR for now
         run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
-        run["metrics/" + mode + "/action"].log(str(buf_infos["action"]))#.tolist()))
-        run["metrics/" + mode + "/reward"].log(buf_infos["reward"])
+        run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
+        run["metrics/" + mode + "/action/INFMain_Junc"].log(str(buf_infos["action"]['INFMain_Junc']))
+        run["metrics/" + mode + "/action/PBB_Junc"].log(str(buf_infos["action"]['PBB_Junc']))
+        run["metrics/" + mode + "/action/SIRIM_Junc"].log(str(buf_infos["action"]['SIRIM_Junc']))
+        run["metrics/" + mode + "/reward_dict"].log(str(buf_infos['reward']))
+        run["metrics/" + mode + "/reward/INFMain_Junc"].log(str(buf_infos['reward']['INFMain_Junc']))
+        run["metrics/" + mode + "/reward/PBB_Junc"].log(str(buf_infos['reward']['PBB_Junc']))
+        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(str(buf_infos['reward']['SIRIM_Junc']))
         run["metrics/" + mode + "/current_number_of_vehicles"].log(
             buf_infos["current_number_of_vehicles"]
         )
@@ -231,8 +241,14 @@ def log_metrics(buf_infos, run, done, mode):
     else:
         # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)             #ignore LR for now
         run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
-        run["metrics/" + mode + "/action"].log(str(buf_infos["action"].tolist()))
-        run["metrics/" + mode + "/reward"].log(buf_infos["reward"])
+        run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
+        run["metrics/" + mode + "/action/INFMain_Junc"].log(str(buf_infos["action"]['INFMain_Junc']))
+        run["metrics/" + mode + "/action/PBB_Junc"].log(str(buf_infos["action"]['PBB_Junc']))
+        run["metrics/" + mode + "/action/SIRIM_Junc"].log(str(buf_infos["action"]['SIRIM_Junc']))
+        run["metrics/" + mode + "/reward_dict"].log(str(buf_infos['reward']))
+        run["metrics/" + mode + "/reward/INFMain_Junc"].log(str(buf_infos['reward']['INFMain_Junc']))
+        run["metrics/" + mode + "/reward/PBB_Junc"].log(str(buf_infos['reward']['PBB_Junc']))
+        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(str(buf_infos['reward']['SIRIM_Junc']))
         run["metrics/" + mode + "/count_of_all_vehicles_in_simulation"].log(
             buf_infos["count_of_all_vehicles_in_simulation"]
         )
