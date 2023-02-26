@@ -192,15 +192,15 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
 
     if not done:
         # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)           #ignore LR for now
-        run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
+        #run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
         run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
-        run["metrics/" + mode + "/action/INFMain_Junc"].log(str(buf_infos["action"]['INFMain_Junc']))
-        run["metrics/" + mode + "/action/PBB_Junc"].log(str(buf_infos["action"]['PBB_Junc']))
-        run["metrics/" + mode + "/action/SIRIM_Junc"].log(str(buf_infos["action"]['SIRIM_Junc']))
+        run["metrics/" + mode + "/action/INFMain_Junc"].log(buf_infos["action"]['INFMain_Junc'])
+        run["metrics/" + mode + "/action/PBB_Junc"].log(buf_infos["action"]['PBB_Junc'])
+        run["metrics/" + mode + "/action/SIRIM_Junc"].log(buf_infos["action"]['SIRIM_Junc'])
         run["metrics/" + mode + "/reward_dict"].log(str(buf_infos['reward']))
-        run["metrics/" + mode + "/reward/INFMain_Junc"].log(str(buf_infos['reward']['INFMain_Junc']))
-        run["metrics/" + mode + "/reward/PBB_Junc"].log(str(buf_infos['reward']['PBB_Junc']))
-        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(str(buf_infos['reward']['SIRIM_Junc']))
+        run["metrics/" + mode + "/reward/INFMain_Junc"].log(buf_infos['reward']['INFMain_Junc'])
+        run["metrics/" + mode + "/reward/PBB_Junc"].log(buf_infos['reward']['PBB_Junc'])
+        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(buf_infos['reward']['SIRIM_Junc'])
         run["metrics/" + mode + "/current_number_of_vehicles"].log(
             buf_infos["current_number_of_vehicles"]
         )
@@ -240,15 +240,15 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
         ].log(buf_infos["current_average_delays_of_all_vehicles_in_simulation"])
     else:
         # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)             #ignore LR for now
-        run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
+        # run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
         run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
-        run["metrics/" + mode + "/action/INFMain_Junc"].log(str(buf_infos["action"]['INFMain_Junc']))
-        run["metrics/" + mode + "/action/PBB_Junc"].log(str(buf_infos["action"]['PBB_Junc']))
-        run["metrics/" + mode + "/action/SIRIM_Junc"].log(str(buf_infos["action"]['SIRIM_Junc']))
+        run["metrics/" + mode + "/action/INFMain_Junc"].log(buf_infos["action"]['INFMain_Junc'])
+        run["metrics/" + mode + "/action/PBB_Junc"].log(buf_infos["action"]['PBB_Junc'])
+        run["metrics/" + mode + "/action/SIRIM_Junc"].log(buf_infos["action"]['SIRIM_Junc'])
         run["metrics/" + mode + "/reward_dict"].log(str(buf_infos['reward']))
-        run["metrics/" + mode + "/reward/INFMain_Junc"].log(str(buf_infos['reward']['INFMain_Junc']))
-        run["metrics/" + mode + "/reward/PBB_Junc"].log(str(buf_infos['reward']['PBB_Junc']))
-        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(str(buf_infos['reward']['SIRIM_Junc']))
+        run["metrics/" + mode + "/reward/INFMain_Junc"].log(buf_infos['reward']['INFMain_Junc'])
+        run["metrics/" + mode + "/reward/PBB_Junc"].log(buf_infos['reward']['PBB_Junc'])
+        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(buf_infos['reward']['SIRIM_Junc'])
         run["metrics/" + mode + "/count_of_all_vehicles_in_simulation"].log(
             buf_infos["count_of_all_vehicles_in_simulation"]
         )
