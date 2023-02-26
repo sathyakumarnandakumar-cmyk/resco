@@ -221,6 +221,25 @@ class MultiSignal(gym.Env):
             # get id all lanes and junctions
             self.lanes_and_junctions_ids = list(traci.lane.getIDList())
 
+            self.current_total_waiting_time_on_incoming_lanes = 0
+            self.old_total_waiting_time_vehicles_on_incoming_lanes = 0
+            self.old_number_of_vehicles_that_passed_through_intersections = 0
+            self.total_waiting_time_vehicles_on_incoming_lanes = 0
+            self.old_total_wait = 0
+            self.current_number_of_vehicles_that_passed_through_the_intersections_in_last_steps = 0
+            self._waiting_times = {}
+            self.waiting_time_vehicles_on_incoming_lanes = []
+            self._reward_list_in_episode = []
+            self._reward_mean_in_episode = []
+            self.total_delays_of_all_vehicles_from_all_routes = []
+            self.total_real_travel_times_all_vehicles_from_all_routes = []
+            self.total_ideal_travel_times_all_vehicles_from_all_routes = []
+
+            self.waiting_time_all_vehicles_in_simulation = []
+            self.vehicles_on_simulation = {}
+            self.vehicles_on_incoming_lanes = dict()
+            self.vehicles_on_outcoming_lanes = dict()
+
         return self.state_fn(self.signals)
 
     def step(self, act):
