@@ -127,6 +127,7 @@ def run_trial(args, trial):
         step_length=map_config["step_length"],
         yellow_length=map_config["yellow_length"],
         step_ratio=map_config["step_ratio"],
+        start_time=map_config["start_time"],
         end_time=map_config["end_time"],
         max_distance=agt_config["max_distance"],
         lights=map_config["lights"],
@@ -175,15 +176,22 @@ def run_trial(args, trial):
             ],
         )
         run["parameters"] = PARAMS_ALGORITHM
+    mode = "training"
 
-    for _ in range(args.eps):
+    for i in range(1, args.eps + 1):
+        if args.map == "BB5B":
+            if i % 10 != 0:
+                mode = "training"
+            else:
+                mode = "validation"
+            env.mode = mode
         obs = env.reset()
         done = False
         while not done:
             act = agent.act(obs)
             obs, rew, done, eps, info = env.step(act)
             if args.map == "BB5B":
-                log_metrics(buf_infos=info, run=run, done=done, mode="train")
+                log_metrics(buf_infos=info, run=run, done=done, mode=mode)
             agent.observe(obs, rew, done, info)
     env.close()
 

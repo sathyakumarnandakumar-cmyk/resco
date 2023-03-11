@@ -1,18 +1,23 @@
+import codecs
 import os
+from pathlib import Path
 from statistics import mean, stdev
 
-import numpy as np
-import traci
-import sumolib
 import gym
+import numpy as np
+import sumolib
+import traci
+import yaml
+
 from traffic_signal import Signal
 from utils.BB5B_sumo_methods import get_the_routes_info
+from utils.mytl.generators.routes import RoutesGenerator
 
 
 class MultiSignal(gym.Env):
-    def __init__(self, run_name, map_name, net, state_fn, reward_fn, route=None, gui=False, end_time=3600,
+    def __init__(self, run_name, map_name, net, state_fn, reward_fn, route=None, gui=False, start_time=0, end_time=3600,
                  step_length=10, yellow_length=4, step_ratio=1, max_distance=200, lights=(), log_dir='/', libsumo=False,
-                 warmup=0, gymma=False):
+                 warmup=0, gymma=False, mode="training"):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
         print(map_name, net, state_fn.__name__, reward_fn.__name__)
@@ -25,6 +30,7 @@ class MultiSignal(gym.Env):
         self.max_distance = max_distance
         self.warmup = warmup
 
+        self.start_time = start_time
         self.end_time = end_time
         self.step_length = step_length
         self.yellow_length = yellow_length
@@ -32,6 +38,7 @@ class MultiSignal(gym.Env):
         self.connection_name = run_name + '-' + map_name + '---' + state_fn.__name__ + '-' + reward_fn.__name__
         self.map_name = map_name
         self.run = None
+        self.mode = mode
 
         # Run some steps in the simulation with default light configurations to detect phases
         if self.route is not None:
@@ -179,7 +186,16 @@ class MultiSignal(gym.Env):
         if self.route is not None:
             self.sumo_cmd += ['-n', self.net, '-r', self.route + '_'+str(self.run)+'.rou.xml']
         else:
-            self.sumo_cmd += ['-c', self.net]
+            if self.map_name == "BB5B":
+                if self.mode == "training":
+                    # generate train file with routes
+                    self.route = self.generate_training_file_with_routes()
+                else: # if mode = validation
+                    self.route = Path("environments", "BB5B", "BB5B_7-8am.rou.xml")
+                self.sumo_cmd += ['-c', self.net, '-r', str(self.route)]
+            else:
+                self.sumo_cmd += ['-c', self.net]
+
         self.sumo_cmd += ['--random', '--time-to-teleport', '-1', '--tripinfo-output',
                           os.path.join(self.log_dir, self.connection_name, 'tripinfo_' + str(self.run) + '.xml'),
                           '--tripinfo-output.write-unfinished',
@@ -297,6 +313,7 @@ class MultiSignal(gym.Env):
                 'total_average_delays_with_weights': round(self.get_total_average_delays_with_weights(), 5),
                 "routes": self.routes_info
             }
+            self.route = None
         elif not done and self.map_name == "BB5B":
             current_waiting_time_vehicles_on_incoming_lanes = sum([self.get_total_waiting_time_vehicles_on_incoming_lanes_per_lane(signal_id) for signal_id in self.signal_ids])
             self.waiting_time_vehicles_on_incoming_lanes.append(current_waiting_time_vehicles_on_incoming_lanes)
@@ -789,3 +806,38 @@ class MultiSignal(gym.Env):
                     ]
                 )
         return sum(total_delays)
+
+    def generate_training_file_with_routes(self):
+
+        # load available routes in the environment
+        with codecs.open(str(Path("environments", "BB5B", "routes", "default.yaml")), "r", "utf-8") as file:
+            routes_descr = yaml.safe_load(file)
+        # load the available types of vehicles in the environment
+        with codecs.open(str(Path("environments", "BB5B", "vehicles", "default.yaml")), "r", "utf-8") as file:
+            vehicles_descr = yaml.safe_load(file)
+
+        path_to_save_rou = Path("environments", "BB5B", "training_routes_files_generated", "train.rou.xml")
+
+        # generate random new routes based on original data with routes from 26/11/2020 and 18/03/2021
+        if self.run % 2 == 0:
+            path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "26NovFull", "BB5B_7-8am.rou.xml")
+        else:
+            path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "18MarFull", "BB5B_7-8am.rou.xml")
+
+        rou_generator = RoutesGenerator(
+            path_to_save_rou=path_to_save_rou,
+            routes=routes_descr,
+            vehicles=vehicles_descr,
+            force=True,
+            begin=self.start_time,
+            end=self.end_time,
+            total_time=self.end_time - self.start_time
+        )
+
+        if rou_generator.path.exists():
+            rou_generator.path.unlink()
+        rou_generator.path = Path("environments", "BB5B", "training_routes_files_generated", f"train_{self.run}.rou.xml")
+        rou_generator(path_from_original_rou=path_from_original_rou)
+
+        train_file = rou_generator.path
+        return train_file
