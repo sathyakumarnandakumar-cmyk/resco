@@ -56,7 +56,7 @@ def main():
         type=str,
         default=os.path.join(os.path.dirname(os.getcwd()), "results" + os.sep),
     )
-    ap.add_argument("--gui", type=bool, default=True)
+    ap.add_argument("--gui", type=bool, default=False)
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
