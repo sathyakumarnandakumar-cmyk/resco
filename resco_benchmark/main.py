@@ -56,7 +56,7 @@ def main():
         type=str,
         default=os.path.join(os.path.dirname(os.getcwd()), "results" + os.sep),
     )
-    ap.add_argument("--gui", type=bool, default=False)
+    ap.add_argument("--gui", type=bool, default=True)
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
@@ -169,7 +169,7 @@ def run_trial(args, trial):
                 # "10 episodes - train, 1 episode - validation on new own generated file",
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
                 "no new vehicles after 1 hour",
-                f"Reward: {agent_configs[args.agent]['reward']}",
+                f"Reward: {agent_configs[args.agent]['reward'].__name__}",
                 # "5e5 steps",
                 "7-8 am",
                 # "aggregating data from lanes on the same road",
