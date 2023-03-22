@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, TypeVar, Union
 from xml.etree import ElementTree
 
-from resco_benchmark.utils.mytl.typing import CodecsOpenParams
+from utils.mytl.typing import CodecsOpenParams
 
 T = TypeVar("T", bound="Generator")
 

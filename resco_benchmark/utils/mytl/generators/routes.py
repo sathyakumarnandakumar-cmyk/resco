@@ -15,8 +15,8 @@ from xml.etree import ElementTree
 import numpy as np
 import xmltodict
 
-from resco_benchmark.utils.mytl.generators.base import Generator
-from resco_benchmark.utils.mytl.typing import SumoRouteSetting, SumoVehicleSetting
+from utils.mytl.generators.base import Generator
+from utils.mytl.typing import SumoRouteSetting, SumoVehicleSetting
 
 if TYPE_CHECKING:
     from pathlib import Path
