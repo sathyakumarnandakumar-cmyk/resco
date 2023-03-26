@@ -2,6 +2,7 @@ import pathlib
 import os
 import multiprocessing as mp
 import neptune.new as neptune
+from neptune.new import Run
 
 from multi_signal import MultiSignal
 import argparse
@@ -55,7 +56,7 @@ def main():
         type=str,
         default=os.path.join(os.path.dirname(os.getcwd()), "results" + os.sep),
     )
-    ap.add_argument("--gui", type=bool, default=True)
+    ap.add_argument("--gui", type=bool, default=False)
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
@@ -116,30 +117,6 @@ def run_trial(args, trial):
                 "You must decompress environment files defining traffic flow"
             )
 
-    PARAMS_ALGORITHM = {
-        "algorithm": args.agent,
-        "number_episodes": args.eps,
-        "map": args.map
-    }  # TODO
-    run = neptune.init_run(
-        project="pgora/Malaysia2",
-        name=f"{args.agent}-sumo-v0",
-        description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
-        tags=[
-            "sumo-v0",
-            f"{args.agent}",
-            "stable-baselines3",
-            # "10 episodes - train, 1 episode - validation on new own generated file",
-            "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
-            "no new vehicles after 1 hour",
-            f"Reward: {agent_configs[args.agent]['reward']}",
-            # "5e5 steps",
-            "7-8 am",
-            # "aggregating data from lanes on the same road",
-        ],
-    )
-    run["parameters"] = PARAMS_ALGORITHM
-    print("Run initiated")
     env = MultiSignal(
         alg.__name__ + "-tr" + str(trial),
         args.map,
@@ -150,6 +127,7 @@ def run_trial(args, trial):
         step_length=map_config["step_length"],
         yellow_length=map_config["yellow_length"],
         step_ratio=map_config["step_ratio"],
+        start_time=map_config["start_time"],
         end_time=map_config["end_time"],
         max_distance=agt_config["max_distance"],
         lights=map_config["lights"],
@@ -172,25 +150,65 @@ def run_trial(args, trial):
             len(env.phases[key]) if key in env.phases else None,
         ]
     agent = alg(agt_config, obs_act, args.map, trial)
+    run = None
+    if args.map == "BB5B":
+        PARAMS_ALGORITHM = {
+            "algorithm": args.agent,
+            "number_episodes": args.eps,
+            "map": args.map
+        }  # TODO
+        run = neptune.init_run(
+            api_token=None,
+            project="pgora/Malaysia2",
+            name=f"{args.agent}-sumo-v0",
+            description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
+            tags=[
+                "sumo-v0",
+                f"{args.agent}",
+                "stable-baselines3",
+                # "10 episodes - train, 1 episode - validation on new own generated file",
+                "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
+                "no new vehicles after 1 hour",
+                f"Reward: {agent_configs[args.agent]['reward'].__name__}",
+                # "5e5 steps",
+                "7-8 am",
+                # "aggregating data from lanes on the same road",
+            ],
+        )
+        run["parameters"] = PARAMS_ALGORITHM
+    mode = "training"
 
-    for _ in range(args.eps):
+    for i in range(1, args.eps + 1):
+        if args.map == "BB5B":
+            if i % 10 != 0:
+                mode = "training"
+            else:
+                mode = "validation"
+            env.mode = mode
         obs = env.reset()
         done = False
         while not done:
             act = agent.act(obs)
             obs, rew, done, eps, info = env.step(act)
-            log_metrics(buf_infos=info, run=run, done=done, mode="train")
+            if args.map == "BB5B":
+                log_metrics(buf_infos=info, run=run, done=done, mode=mode)
             agent.observe(obs, rew, done, info)
     env.close()
 
 
-def log_metrics(buf_infos, run, done, mode):
+def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
 
     if not done:
         # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)           #ignore LR for now
-        run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
-        run["metrics/" + mode + "/action"].log(str(buf_infos["action"]))#.tolist()))
-        run["metrics/" + mode + "/reward"].log(buf_infos["reward"])
+        #run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
+        run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
+        run["metrics/" + mode + "/action/INFMain_Junc"].log(buf_infos["action"]['INFMain_Junc'])
+        run["metrics/" + mode + "/action/PBB_Junc"].log(buf_infos["action"]['PBB_Junc'])
+        run["metrics/" + mode + "/action/SIRIM_Junc"].log(buf_infos["action"]['SIRIM_Junc'])
+        run["metrics/" + mode + "/reward_dict"].log(str(buf_infos['reward']))
+        run["metrics/" + mode + "/reward/INFMain_Junc"].log(buf_infos['reward']['INFMain_Junc'])
+        run["metrics/" + mode + "/reward/PBB_Junc"].log(buf_infos['reward']['PBB_Junc'])
+        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(buf_infos['reward']['SIRIM_Junc'])
         run["metrics/" + mode + "/current_number_of_vehicles"].log(
             buf_infos["current_number_of_vehicles"]
         )
@@ -230,9 +248,15 @@ def log_metrics(buf_infos, run, done, mode):
         ].log(buf_infos["current_average_delays_of_all_vehicles_in_simulation"])
     else:
         # run["metrics/" + mode + "/learning_rate"].log(model.learning_rate)             #ignore LR for now
-        run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
-        run["metrics/" + mode + "/action"].log(str(buf_infos["action"].tolist()))
-        run["metrics/" + mode + "/reward"].log(buf_infos["reward"])
+        # run["metrics/" + mode + "/observation"].log(str(buf_infos["observation"]))
+        run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
+        run["metrics/" + mode + "/action/INFMain_Junc"].log(buf_infos["action"]['INFMain_Junc'])
+        run["metrics/" + mode + "/action/PBB_Junc"].log(buf_infos["action"]['PBB_Junc'])
+        run["metrics/" + mode + "/action/SIRIM_Junc"].log(buf_infos["action"]['SIRIM_Junc'])
+        run["metrics/" + mode + "/reward_dict"].log(str(buf_infos['reward']))
+        run["metrics/" + mode + "/reward/INFMain_Junc"].log(buf_infos['reward']['INFMain_Junc'])
+        run["metrics/" + mode + "/reward/PBB_Junc"].log(buf_infos['reward']['PBB_Junc'])
+        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(buf_infos['reward']['SIRIM_Junc'])
         run["metrics/" + mode + "/count_of_all_vehicles_in_simulation"].log(
             buf_infos["count_of_all_vehicles_in_simulation"]
         )
