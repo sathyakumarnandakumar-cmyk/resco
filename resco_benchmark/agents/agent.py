@@ -74,6 +74,6 @@ class SharedAgent(Agent):
         batch_done = [done]*len(batch_obs)
         batch_reset = [False]*len(batch_obs)
         self.agent.observe(batch_obs, batch_rew, batch_done, batch_reset)
-        if done:
-            if info['eps'] % 100 == 0:
-                self.agent.save(self.config['log_dir']+'agent')
+        # if done:
+        #     if info['eps'] % 100 == 0:
+        #         self.agent.save(self.config['log_dir']+'agent')
