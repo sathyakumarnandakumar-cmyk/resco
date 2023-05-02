@@ -37,7 +37,7 @@ def main():
     ap.add_argument(
         "--map",
         type=str,
-        default="ingolstadt1",
+        default="BB5B",
         choices=[
             "grid4x4",
             "arterial4x4",
@@ -178,6 +178,10 @@ def run_trial(args, trial):
         run["parameters"] = PARAMS_ALGORITHM
     mode = "training"
 
+    # A dictionary below stores informations about the most important parameters
+    # based on which we'll choose the best model(s).
+    dict_with_agents = {}
+    
     for i in range(1, args.eps + 1):
         if args.map == "BB5B":
             if i % 10 != 0:
@@ -193,6 +197,69 @@ def run_trial(args, trial):
             if args.map == "BB5B":
                 log_metrics(buf_infos=info, run=run, done=done, mode=mode)
             agent.observe(obs, rew, done, info)
+
+        if mode == "validation":
+            dict_with_agents[f"eps_{i}"] = {
+                "agents": agent.agents,
+                "total_average_delays_of_all_vehicles_from_all_routes": info[
+                    "total_average_delays_of_all_vehicles_from_all_routes"],
+                "count_of_vehicles_completing_journey": info[
+                    "count_of_vehicles_completing_journey"]
+            }
+    
+    if args.agent in ["IDQN", "IPPO", "STOCHASTIC"]:
+        # Determining the minimum value of total_average_delays and 
+        # maximum values of count_of_vehicles
+        min_total_average_delays = min(d['total_average_delays_of_all_vehicles_from_all_routes'] 
+                                    for d in dict_with_agents.values())
+        max_count_of_vehicles = max(d['count_of_vehicles_completing_journey'] 
+                                    for d in dict_with_agents.values())
+
+        min_total_average_delays_key = [key for key in dict_with_agents.keys()
+                                        if int(dict_with_agents[key][
+                                            "total_average_delays_of_all_vehicles_from_all_routes"]) 
+                                        == min_total_average_delays][0]
+        max_count_of_vehicles_key = [key for key in dict_with_agents.keys()
+                                    if int(dict_with_agents[key][
+                                        "count_of_vehicles_completing_journey"]) 
+                                    == max_count_of_vehicles][0]
+
+
+        min_total_average_delays_dir = os.path.join(
+            agt_config["log_dir"],
+            f"min_total_average_delays_key_{min_total_average_delays_key}")
+        max_count_of_vehicles_dir = os.path.join(
+            agt_config["log_dir"],
+            f"max_count_of_vehicles_key_{max_count_of_vehicles_key}")
+
+        if not min_total_average_delays_key == max_count_of_vehicles_key:
+            if not os.path.exists(min_total_average_delays_dir):
+                os.mkdir(min_total_average_delays_dir)
+
+            if not os.path.exists(max_count_of_vehicles_dir):
+                os.mkdir(max_count_of_vehicles_dir)
+
+            for model_name, model in dict_with_agents[min_total_average_delays_dir]["agents"].items():
+                model_save_path = os.path.join(min_total_average_delays_dir, model_name)
+                model.save(model_save_path)
+                run["models/model_min_total_average_delays"].upload(f"{model_save_path}.pt")
+
+            for model_name, model in dict_with_agents[max_count_of_vehicles_dir]["agents"].items():
+                model_save_path = os.path.join(max_count_of_vehicles_dir, model_name)
+                model.save(model_save_path)
+                run["models/model_max_count_of_vehicles_dir"].upload(f"{model_save_path}.pt")
+
+        else:
+            dir = os.path.join(agt_config["log_dir"], "best_models")
+
+            if not os.path.exists(dir):
+                os.mkdir(dir)
+
+            for model_name, model in dict_with_agents[dir]["agents"].items():
+                model_save_path = os.path.join(min_total_average_delays_dir, model_name)
+                model.save(model_save_path)
+                run["models"].upload(f"{model_save_path}.pt")
+
     env.close()
 
 
