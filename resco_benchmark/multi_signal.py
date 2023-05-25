@@ -16,7 +16,7 @@ from utils.mytl.generators.routes import RoutesGenerator
 
 class MultiSignal(gym.Env):
     def __init__(self, run_name, map_name, net, state_fn, reward_fn, route=None, gui=False, start_time=0, end_time=3600,
-                 step_length=10, yellow_length=4, step_ratio=1, max_distance=200, lights=(), log_dir='/', libsumo=False,
+                 step_length=10, yellow_length=3, step_ratio=1, max_distance=200, lights=(), log_dir='/', libsumo=False,
                  warmup=0, gymma=False, mode="training"):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
@@ -34,6 +34,7 @@ class MultiSignal(gym.Env):
         self.end_time = end_time
         self.step_length = step_length
         self.yellow_length = yellow_length
+        self.red_length = 2
         self.step_ratio = step_ratio
         self.connection_name = run_name + '-' + map_name + '---' + state_fn.__name__ + '-' + reward_fn.__name__
         self.map_name = map_name
@@ -87,7 +88,8 @@ class MultiSignal(gym.Env):
             o_shape = gym.spaces.Box(low=-np.inf, high=np.inf, shape=o_shape)
             self.ts_order.append(ts)
             self.observation_space.append(o_shape)
-            self.action_space.append(gym.spaces.Discrete(len(self.phases[ts])))
+            # self.action_space.append(gym.spaces.Discrete(len(self.phases[ts])))
+            self.action_space.append(gym.spaces.Discrete(2))
 
         self.n_agents = self.ts_starter
 
@@ -147,8 +149,12 @@ class MultiSignal(gym.Env):
     def step_sim(self):
         # The monaco scenario expects .25s steps instead of 1s, account for that here.
         for _ in range(self.step_ratio):
+            if self.sim_step == 25201:
+                traci.trafficlight.setPhase("INFMain_Junc", 5)
             self.sumo.simulationStep()
             if self.map_name == "BB5B" and self.run is not None:
+                for ts in self.signal_ids:
+                    self.signals[ts].update()
                 self.update_waiting_time_all_vehicles_in_simulation()
                 self.check_if_vehicle_has_not_disappeared_from_environment()
                 self.update_waiting_time_vehicles_on_incoming_lanes()
@@ -256,11 +262,11 @@ class MultiSignal(gym.Env):
         for signal in self.signals:
             self.signals[signal].prep_phase(act[signal])
 
-        for step in range(self.yellow_length):
+        for step in range(self.red_length + self.yellow_length):
             self.step_sim()
         for signal in self.signal_ids:
             self.signals[signal].set_phase()
-        for step in range(self.step_length - self.yellow_length):
+        for step in range(self.step_length - self.yellow_length - self.red_length):
             self.step_sim()
         for signal in self.signal_ids:
             self.signals[signal].observe(self.step_length, self.max_distance)

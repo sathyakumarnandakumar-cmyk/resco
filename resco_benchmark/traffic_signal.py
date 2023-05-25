@@ -31,6 +31,11 @@ class Signal:
         self.yellow_time = yellow_length
         self.next_phase = 0
 
+        self.red_time = 2
+        self.min_green = 5
+        self.max_green = 90
+        self.time_since_last_phase_change = 0
+
         links = self.sumo.trafficlight.getControlledLinks(self.id)
         lanes = []
 
@@ -90,8 +95,7 @@ class Signal:
 
         self.waiting_times = dict()     # SUMO's WaitingTime and AccumulatedWaiting are both wrong for multiple signals
 
-        self.phases, self.yellow_dict = create_yellows(phases, yellow_length)
-
+        self.phases = traci.trafficlight.getCompleteRedYellowGreenDefinition(self.id)[0].phases
         # logic = self.sumo.trafficlight.Logic(id, 0, 0, phases=self.phases) # not compatible with libsumo
         programs = self.sumo.trafficlight.getAllProgramLogics(self.id)
         logic = programs[0]
@@ -102,6 +106,22 @@ class Signal:
         self.signals = None     # Used to allow signal sharing
         self.full_observation = None
         self.last_step_vehicles = None
+        self.yellow_phases_list = [y_phase for y_phase in range(1, len(self.phases), 3)]
+        self.red_phases_list = [r_phase for r_phase in range(2, len(self.phases), 3)]
+        self.is_yellow = None
+        self.is_red = None
+        self._setup_yellow_red()
+
+    def _setup_yellow_red(self):
+        if self.phase in self.yellow_phases_list:
+            self.is_yellow = True
+            self.is_red = False
+        elif self.phase in self.red_phases_list:
+            self.is_red = True
+            self.is_yellow = False
+        else:
+            self.is_yellow = False
+            self.is_red = False
 
     def generate_config(self):
         print('GENERATING CONFIG')
@@ -173,15 +193,41 @@ class Signal:
     def phase(self):
         return self.sumo.trafficlight.getPhase(self.id)
 
-    def prep_phase(self, new_phase):
-        if self.phase == new_phase:
+    def update(self):
+        self.time_since_last_phase_change += 1
+        if self.is_yellow and self.time_since_last_phase_change == self.yellow_time:
+            traci.trafficlight.setPhase(self.id, self.phase + 1)  # turns red
+            self.is_yellow = False
+            self.is_red = True
+            self.time_since_last_phase_change = 0
+        elif self.is_red and self.time_since_last_phase_change == self.red_time:
+            if self.phase + 1 >= len(self.phases):
+                self.next_phase = 0
+            else:
+                self.next_phase = self.phase + 1
+            traci.trafficlight.setPhase(self.id, self.next_phase)  # turns new green phase
+            self.is_red = False
+            self.time_since_last_phase_change = 0
+
+    def prep_phase(self, action: int):
+        """
+        Set the next green phase for the traffic signals
+        :param action: (int) Number between 0 and 1
+            if action = 0 do nothing
+            if action = 1 change the current light
+        """
+        # do nothing
+        if action == 0 or self.time_since_last_phase_change < self.min_green + self.yellow_time + self.red_time:
             self.next_phase = self.phase
         else:
-            self.next_phase = new_phase
-            key = str(self.phase) + '_' + str(new_phase)
-            if key in self.yellow_dict:
-                yel_idx = self.yellow_dict[key]
-                self.sumo.trafficlight.setPhase(self.id, yel_idx)  # turns yellow
+            # next green phase is different than old green phase, so set new phase
+            if self.phase + 3 >= len(self.phases):
+                self.next_phase = 0
+            else:
+                self.next_phase = self.phase + 3
+            traci.trafficlight.setPhase(self.id, self.phase + 1)  # turns yellow
+            self.is_yellow = True
+            self.time_since_last_phase_change = 0
 
     def set_phase(self):
         self.sumo.trafficlight.setPhase(self.id, int(self.next_phase))
