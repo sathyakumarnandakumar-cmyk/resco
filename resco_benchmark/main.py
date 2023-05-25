@@ -147,7 +147,7 @@ def run_trial(args, trial):
     for key in env.obs_shape:
         obs_act[key] = [
             env.obs_shape[key],
-            len(env.phases[key]) if key in env.phases else None,
+            2 if key in env.phases else None,
         ]
     agent = alg(agt_config, obs_act, args.map, trial)
     run = None
