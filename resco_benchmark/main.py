@@ -1,5 +1,7 @@
 import pathlib
 import os
+from datetime import datetime
+from collections import Counter
 import multiprocessing as mp
 import neptune.new as neptune
 from neptune.new import Run
@@ -10,6 +12,8 @@ from config.agent_config import agent_configs
 from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 
+
+START_TIME = datetime.now().strftime("%d_%m_%H_%M_%S")
 
 def main():
     ap = argparse.ArgumentParser()
@@ -198,7 +202,7 @@ def run_trial(args, trial):
                 log_metrics(buf_infos=info, run=run, done=done, mode=mode)
             agent.observe(obs, rew, done, info)
 
-        if mode == "validation":
+        if mode == "validation" and args.map == "BB5B":
             dict_with_agents[f"eps_{i}"] = {
                 "agents": agent.agents,
                 "total_average_delays_of_all_vehicles_from_all_routes": info[
@@ -206,59 +210,12 @@ def run_trial(args, trial):
                 "count_of_vehicles_completing_journey": info[
                     "count_of_vehicles_completing_journey"]
             }
-    
-    if args.agent in ["IDQN", "IPPO", "STOCHASTIC"]:
-        # Determining the minimum value of total_average_delays and 
-        # maximum values of count_of_vehicles
-        min_total_average_delays = min(d['total_average_delays_of_all_vehicles_from_all_routes'] 
-                                    for d in dict_with_agents.values())
-        max_count_of_vehicles = max(d['count_of_vehicles_completing_journey'] 
-                                    for d in dict_with_agents.values())
 
-        min_total_average_delays_key = [key for key in dict_with_agents.keys()
-                                        if int(dict_with_agents[key][
-                                            "total_average_delays_of_all_vehicles_from_all_routes"]) 
-                                        == min_total_average_delays][0]
-        max_count_of_vehicles_key = [key for key in dict_with_agents.keys()
-                                    if int(dict_with_agents[key][
-                                        "count_of_vehicles_completing_journey"]) 
-                                    == max_count_of_vehicles][0]
-
-
-        min_total_average_delays_dir = os.path.join(
-            agt_config["log_dir"],
-            f"min_total_average_delays_key_{min_total_average_delays_key}")
-        max_count_of_vehicles_dir = os.path.join(
-            agt_config["log_dir"],
-            f"max_count_of_vehicles_key_{max_count_of_vehicles_key}")
-
-        if not min_total_average_delays_key == max_count_of_vehicles_key:
-            if not os.path.exists(min_total_average_delays_dir):
-                os.mkdir(min_total_average_delays_dir)
-
-            if not os.path.exists(max_count_of_vehicles_dir):
-                os.mkdir(max_count_of_vehicles_dir)
-
-            for model_name, model in dict_with_agents[min_total_average_delays_dir]["agents"].items():
-                model_save_path = os.path.join(min_total_average_delays_dir, model_name)
-                model.save(model_save_path)
-                run["models/model_min_total_average_delays"].upload(f"{model_save_path}.pt")
-
-            for model_name, model in dict_with_agents[max_count_of_vehicles_dir]["agents"].items():
-                model_save_path = os.path.join(max_count_of_vehicles_dir, model_name)
-                model.save(model_save_path)
-                run["models/model_max_count_of_vehicles_dir"].upload(f"{model_save_path}.pt")
-
-        else:
-            dir = os.path.join(agt_config["log_dir"], "best_models")
-
-            if not os.path.exists(dir):
-                os.mkdir(dir)
-
-            for model_name, model in dict_with_agents[dir]["agents"].items():
-                model_save_path = os.path.join(min_total_average_delays_dir, model_name)
-                model.save(model_save_path)
-                run["models"].upload(f"{model_save_path}.pt")
+    if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
+        log_models(dict_with_agents=dict_with_agents,
+                   agt_config=agt_config,
+                   run=run,
+                   args=args)
 
     env.close()
 
@@ -430,6 +387,44 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/average_travel_time"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['average_travel_time'])
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/total"].log(str(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['total']) if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else "0")
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/average"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['average'] if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else 0)
+
+
+def log_models(dict_with_agents, agt_config, run, args):
+    # Determining the minimum value of count_of_vehicles
+    max_count_of_vehicles = max([model_info['count_of_vehicles_completing_journey'] 
+                                 for model_info in dict_with_agents.values()])
+
+    list_of_eps_numbers_max_count_of_vehicles = [
+        eps_number 
+        for eps_number, model_info in dict_with_agents.items()
+        if model_info["count_of_vehicles_completing_journey"] 
+        == max_count_of_vehicles]
+    # A small helper list to avoid nested list comprehension. The
+    # list stores information about the
+    # "total_average_delays_of_all_vehicles_from_all_routes" parameter
+    # for the "count_of_vehicles_completing_journey" parameter
+    helper_list_max_count_of_vehicles = [
+        model_info["total_average_delays_of_all_vehicles_from_all_routes"] 
+        for eps_number, model_info in dict_with_agents.items() 
+        if eps_number in list_of_eps_numbers_max_count_of_vehicles]
+    best_eps_for_count_of_vehicles_completing_journey = [
+        eps
+        for _, eps in sorted(zip(helper_list_max_count_of_vehicles, list_of_eps_numbers_max_count_of_vehicles))
+    ][0]
+
+    max_count_of_vehicles_dir = os.path.join(
+        agt_config["log_dir"],
+        "_",
+        f"max_count_of_vehicles_{best_eps_for_count_of_vehicles_completing_journey}_{START_TIME}")
+
+    if not os.path.exists(max_count_of_vehicles_dir):
+        os.mkdir(max_count_of_vehicles_dir)
+
+    for model_name, model in dict_with_agents[best_eps_for_count_of_vehicles_completing_journey]["agents"].items():
+        model_save_path = os.path.join(max_count_of_vehicles_dir, model_name)
+        model.save(model_save_path)
+        run[f"models/{args.agent}/{best_eps_for_count_of_vehicles_completing_journey}"].upload(f"{model_save_path}.pt")
+        os.remove(f"{model_save_path}.pt")
 
 
 if __name__ == "__main__":
