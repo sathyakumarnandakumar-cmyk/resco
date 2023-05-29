@@ -1,10 +1,10 @@
 import pathlib
 import os
 from datetime import datetime
-from collections import Counter
 import multiprocessing as mp
 import neptune.new as neptune
 from neptune.new import Run
+import shutil
 
 from multi_signal import MultiSignal
 import argparse
@@ -216,7 +216,6 @@ def run_trial(args, trial):
                    agt_config=agt_config,
                    run=run,
                    args=args)
-
     env.close()
 
 
@@ -414,8 +413,7 @@ def log_models(dict_with_agents, agt_config, run, args):
 
     max_count_of_vehicles_dir = os.path.join(
         agt_config["log_dir"],
-        "_",
-        f"max_count_of_vehicles_{best_eps_for_count_of_vehicles_completing_journey}_{START_TIME}")
+        f"max_count_of_vehicles_{START_TIME}_{best_eps_for_count_of_vehicles_completing_journey}")
 
     if not os.path.exists(max_count_of_vehicles_dir):
         os.mkdir(max_count_of_vehicles_dir)
@@ -423,8 +421,13 @@ def log_models(dict_with_agents, agt_config, run, args):
     for model_name, model in dict_with_agents[best_eps_for_count_of_vehicles_completing_journey]["agents"].items():
         model_save_path = os.path.join(max_count_of_vehicles_dir, model_name)
         model.save(model_save_path)
-        run[f"models/{args.agent}/{best_eps_for_count_of_vehicles_completing_journey}"].upload(f"{model_save_path}.pt")
-        os.remove(f"{model_save_path}.pt")
+    
+    zipped_dir = os.path.join(agt_config["log_dir"], "models")
+    shutil.make_archive(zipped_dir, "zip", max_count_of_vehicles_dir)
+    run[f"models/{best_eps_for_count_of_vehicles_completing_journey}"].upload(f"{zipped_dir}.zip")
+    
+    shutil.rmtree(max_count_of_vehicles_dir)
+    shutil.rmtree(f"{zipped_dir}.zip")
 
 
 if __name__ == "__main__":
