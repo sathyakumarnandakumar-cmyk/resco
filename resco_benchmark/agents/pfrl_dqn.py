@@ -12,10 +12,10 @@ from pfrl.q_functions import DiscreteActionValueHead
 from pfrl.utils.contexts import evaluating
 
 from agents.agent import IndependentAgent, Agent
-
+from agents.nets import get_net
 
 class IDQN(IndependentAgent):
-    def __init__(self, config, obs_act, map_name, thread_number):
+    def __init__(self, config, obs_act, map_name, thread_number, net):
         super().__init__(config, obs_act, map_name, thread_number)
         for key in obs_act:
             obs_space = obs_act[key][0]
@@ -27,18 +27,18 @@ class IDQN(IndependentAgent):
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
 
-            model = nn.Sequential(
-                nn.Conv2d(obs_space[0], 64, kernel_size=(2, 2)),
-                nn.ReLU(),
-                nn.Flatten(),
-                nn.Linear(h * w * 64, 64),
-                nn.ReLU(),
-                nn.Linear(64, 64),
-                nn.ReLU(),
-                nn.Linear(64, act_space),
-                DiscreteActionValueHead()
-            )
-
+            # model = nn.Sequential(
+            #     nn.Conv2d(obs_space[0], 64, kernel_size=(2, 2)),
+            #     nn.ReLU(),
+            #     nn.Flatten(),
+            #     nn.Linear(h * w * 64, 64),
+            #     nn.ReLU(),
+            #     nn.Linear(64, 64),
+            #     nn.ReLU(),
+            #     nn.Linear(64, act_space),
+            #     DiscreteActionValueHead()
+            # )
+            model = get_net(net, obs_space, act_space, h, w)
             self.agents[key] = DQNAgent(config, act_space, model)
 
 

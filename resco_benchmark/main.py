@@ -57,6 +57,7 @@ def main():
         default=os.path.join(os.path.dirname(os.getcwd()), "results" + os.sep),
     )
     ap.add_argument("--gui", type=bool, default=False)
+    ap.add_argument("--net", type=str, default="default")
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
@@ -149,14 +150,18 @@ def run_trial(args, trial):
             env.obs_shape[key],
             len(env.phases[key]) if key in env.phases else None,
         ]
-    agent = alg(agt_config, obs_act, args.map, trial)
+    if args.agent == 'IDQN':
+        agent = alg(agt_config, obs_act, args.map, trial, args.net)
+    else:
+        agent = alg(agt_config, obs_act, args.map, trial)
     run = None
     if args.map == "BB5B":
         PARAMS_ALGORITHM = {
             "algorithm": args.agent,
             "number_episodes": args.eps,
-            "map": args.map
-        }  # TODO
+            "map": args.map,
+            "net": args.net
+        }
         run = neptune.init_run(
             api_token=None,
             project="pgora/Malaysia2",
@@ -165,6 +170,7 @@ def run_trial(args, trial):
             tags=[
                 "sumo-v0",
                 f"{args.agent}",
+                f"Net: {args.net}",
                 "stable-baselines3",
                 # "10 episodes - train, 1 episode - validation on new own generated file",
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
