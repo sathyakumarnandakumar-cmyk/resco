@@ -1,8 +1,10 @@
 import pathlib
 import os
+from datetime import datetime
 import multiprocessing as mp
 import neptune.new as neptune
 from neptune.new import Run
+import shutil
 
 from multi_signal import MultiSignal
 import argparse
@@ -10,6 +12,8 @@ from config.agent_config import agent_configs
 from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 
+
+START_TIME = datetime.now().strftime("%d_%m_%H_%M")
 
 def main():
     ap = argparse.ArgumentParser()
@@ -37,7 +41,7 @@ def main():
     ap.add_argument(
         "--map",
         type=str,
-        default="ingolstadt1",
+        default="BB5B",
         choices=[
             "grid4x4",
             "arterial4x4",
@@ -178,6 +182,10 @@ def run_trial(args, trial):
         run["parameters"] = PARAMS_ALGORITHM
     mode = "training"
 
+    # A dictionary below stores informations about the most important parameters
+    # based on which we'll choose the best model(s).
+    dict_with_agents = {}
+    
     for i in range(1, args.eps + 1):
         if args.map == "BB5B":
             if i % 10 != 0:
@@ -193,7 +201,22 @@ def run_trial(args, trial):
             if args.map == "BB5B":
                 log_metrics(buf_infos=info, run=run, done=done, mode=mode)
             agent.observe(obs, rew, done, info)
+
+        if mode == "validation" and args.map == "BB5B":
+            dict_with_agents[f"eps_{i}"] = {
+                "agents": agent.agents,
+                "total_average_delays_of_all_vehicles_from_all_routes": info[
+                    "total_average_delays_of_all_vehicles_from_all_routes"],
+                "count_of_vehicles_completing_journey": info[
+                    "count_of_vehicles_completing_journey"]
+            }
+
     env.close()
+    
+    if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
+        log_models(dict_with_agents=dict_with_agents,
+                   agt_config=agt_config,
+                   run=run)
 
 
 def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
@@ -363,6 +386,48 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/average_travel_time"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['average_travel_time'])
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/total"].log(str(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['total']) if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else "0")
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/average"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['average'] if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else 0)
+
+
+def log_models(dict_with_agents: dict, agt_config: dict, run: Run):
+    # Determining the maximum value of count_of_vehicles
+    max_count_of_vehicles = max([model_info['count_of_vehicles_completing_journey'] 
+                                 for model_info in dict_with_agents.values()])
+
+    list_of_eps_numbers_max_count_of_vehicles = [
+        eps_number 
+        for eps_number, model_info in dict_with_agents.items()
+        if model_info["count_of_vehicles_completing_journey"] 
+        == max_count_of_vehicles]
+    # A small helper list to avoid nested list comprehension. The
+    # list stores information about the
+    # "total_average_delays_of_all_vehicles_from_all_routes" parameter
+    # for the "count_of_vehicles_completing_journey" parameter
+    helper_list_total_average_delays = [
+        model_info["total_average_delays_of_all_vehicles_from_all_routes"] 
+        for eps_number, model_info in dict_with_agents.items() 
+        if eps_number in list_of_eps_numbers_max_count_of_vehicles]
+    best_eps_for_count_of_vehicles_completing_journey = [
+        eps
+        for _, eps in sorted(zip(helper_list_total_average_delays, list_of_eps_numbers_max_count_of_vehicles))
+    ][0]
+
+    max_count_of_vehicles_dir = os.path.join(
+        agt_config["log_dir"],
+        f"max_count_of_vehicles_{START_TIME}_{best_eps_for_count_of_vehicles_completing_journey}")
+
+    if not os.path.exists(max_count_of_vehicles_dir):
+        os.mkdir(max_count_of_vehicles_dir)
+
+    for agent_name, model in dict_with_agents[best_eps_for_count_of_vehicles_completing_journey]["agents"].items():
+        model_save_path = os.path.join(max_count_of_vehicles_dir, agent_name)
+        model.save(model_save_path)
+    
+    zipped_dir = os.path.join(agt_config["log_dir"], "models")
+    shutil.make_archive(zipped_dir, "zip", max_count_of_vehicles_dir)
+    run[f"models/{best_eps_for_count_of_vehicles_completing_journey}"].upload(f"{zipped_dir}.zip", wait=True)
+
+    shutil.rmtree(max_count_of_vehicles_dir)
+    os.remove(f"{zipped_dir}.zip")
 
 
 if __name__ == "__main__":
