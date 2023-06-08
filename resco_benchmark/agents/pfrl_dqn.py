@@ -2,13 +2,11 @@ from typing import Any, Sequence
 import numpy as np
 
 import torch
-import torch.nn as nn
 
 import pfrl
 from pfrl import explorers, replay_buffers
 from pfrl.explorer import Explorer
 from pfrl.agents import DQN
-from pfrl.q_functions import DiscreteActionValueHead
 from pfrl.utils.contexts import evaluating
 
 from agents.agent import IndependentAgent, Agent
@@ -27,17 +25,6 @@ class IDQN(IndependentAgent):
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
 
-            # model = nn.Sequential(
-            #     nn.Conv2d(obs_space[0], 64, kernel_size=(2, 2)),
-            #     nn.ReLU(),
-            #     nn.Flatten(),
-            #     nn.Linear(h * w * 64, 64),
-            #     nn.ReLU(),
-            #     nn.Linear(64, 64),
-            #     nn.ReLU(),
-            #     nn.Linear(64, act_space),
-            #     DiscreteActionValueHead()
-            # )
             model = get_net(net, obs_space, act_space, h, w)
             self.agents[key] = DQNAgent(config, act_space, model)
 
