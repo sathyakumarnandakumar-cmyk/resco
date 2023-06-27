@@ -239,7 +239,7 @@ def run_trial(args, trial):
             }
 
     env.close()
-    
+
     if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
         log_models(dict_with_agents=dict_with_agents,
                    agt_config=agt_config,
