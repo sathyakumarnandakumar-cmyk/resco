@@ -11,6 +11,7 @@ from pfrl.utils.contexts import evaluating
 
 from agents.agent import IndependentAgent, Agent
 from agents.nets import get_net
+from agents.models.calculate_output_size import conv2d_size_out
 
 class IDQN(IndependentAgent):
     def __init__(self, config, obs_act, map_name, thread_number, net):
@@ -18,9 +19,6 @@ class IDQN(IndependentAgent):
         for key in obs_act:
             obs_space = obs_act[key][0]
             act_space = obs_act[key][1]
-
-            def conv2d_size_out(size, kernel_size=2, stride=1):
-                return (size - (kernel_size - 1) - 1) // stride + 1
 
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
