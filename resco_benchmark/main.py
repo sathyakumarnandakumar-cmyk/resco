@@ -1,4 +1,4 @@
-import pathlib
+# import pathlib
 import os
 from datetime import datetime
 import multiprocessing as mp
@@ -11,6 +11,10 @@ import argparse
 from config.agent_config import agent_configs
 from config.map_config import map_configs
 from config.mdp_config import mdp_configs
+
+import numpy as np
+import random
+import torch
 
 
 START_TIME = datetime.now().strftime("%d_%m_%H_%M")
@@ -66,12 +70,22 @@ def main():
     ap.add_argument(
         "--tr", type=int, default=0
     )  # Can't multi-thread with libsumo, provide a trial number
+    ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
     if args.libsumo and "LIBSUMO_AS_TRACI" not in os.environ:
         raise EnvironmentError(
             "Set LIBSUMO_AS_TRACI to nonempty value to enable libsumo"
         )
+
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+
+    torch.use_deterministic_algorithms(True)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     if args.procs == 1 or args.libsumo:
         run_trial(args, args.tr)
@@ -140,6 +154,7 @@ def run_trial(args, trial):
         log_dir=args.log_dir,
         libsumo=args.libsumo,
         warmup=map_config["warmup"],
+        seed=args.seed,
     )
 
     agt_config["episodes"] = int(args.eps * 0.8)  # schedulers decay over 80% of steps
@@ -164,7 +179,8 @@ def run_trial(args, trial):
             "algorithm": args.agent,
             "number_episodes": args.eps,
             "map": args.map,
-            "net": args.net
+            "net": args.net,
+            "seed": args.seed
         }
         run = neptune.init_run(
             api_token=None,
@@ -209,6 +225,11 @@ def run_trial(args, trial):
             agent.observe(obs, rew, done, info)
 
         if mode == "validation" and args.map == "BB5B":
+            if args.agent == "STOCHASTIC":
+                for _, model in agent.agents.items():
+                    model.random_state = random.getstate()
+                    break
+
             dict_with_agents[f"eps_{i}"] = {
                 "agents": agent.agents,
                 "total_average_delays_of_all_vehicles_from_all_routes": info[
@@ -218,11 +239,12 @@ def run_trial(args, trial):
             }
 
     env.close()
-    
+
     if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
         log_models(dict_with_agents=dict_with_agents,
                    agt_config=agt_config,
-                   run=run)
+                   run=run,
+                   agent=args.agent)
 
 
 def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
@@ -394,7 +416,7 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
                     run["metrics/" + mode + "/routes/" + route_id + "/vehicle_type/" + veh_type + "/real/delays/average"].log(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['delays']['average'] if len(buf_infos['routes'][route_id]['vehicle_type'][veh_type]['real']['vehicle_id']) != 0 else 0)
 
 
-def log_models(dict_with_agents: dict, agt_config: dict, run: Run):
+def log_models(dict_with_agents: dict, agt_config: dict, run: Run, agent):
     # Determining the maximum value of count_of_vehicles
     max_count_of_vehicles = max([model_info['count_of_vehicles_completing_journey'] 
                                  for model_info in dict_with_agents.values()])
@@ -427,6 +449,8 @@ def log_models(dict_with_agents: dict, agt_config: dict, run: Run):
     for agent_name, model in dict_with_agents[best_eps_for_count_of_vehicles_completing_journey]["agents"].items():
         model_save_path = os.path.join(max_count_of_vehicles_dir, agent_name)
         model.save(model_save_path)
+        if agent == "STOCHASTIC":
+            break
     
     zipped_dir = os.path.join(agt_config["log_dir"], "models")
     shutil.make_archive(zipped_dir, "zip", max_count_of_vehicles_dir)

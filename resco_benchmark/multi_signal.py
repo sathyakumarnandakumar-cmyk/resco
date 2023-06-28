@@ -17,7 +17,7 @@ from utils.mytl.generators.routes import RoutesGenerator
 class MultiSignal(gym.Env):
     def __init__(self, run_name, map_name, net, state_fn, reward_fn, route=None, gui=False, start_time=0, end_time=3600,
                  step_length=10, yellow_length=3, step_ratio=1, max_distance=200, lights=(), log_dir='/', libsumo=False,
-                 warmup=0, gymma=False, mode="training"):
+                 warmup=0, gymma=False, mode="training", seed=42):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
         print(map_name, net, state_fn.__name__, reward_fn.__name__)
@@ -40,6 +40,7 @@ class MultiSignal(gym.Env):
         self.map_name = map_name
         self.run = None
         self.mode = mode
+        self.seed = seed
 
         # Run some steps in the simulation with default light configurations to detect phases
         if self.route is not None:
@@ -189,12 +190,13 @@ class MultiSignal(gym.Env):
             else:
                 self.sumo_cmd += ['-c', self.net]
 
-        self.sumo_cmd += ['--random', '--time-to-teleport', '-1', '--tripinfo-output',
+        self.sumo_cmd += ['--time-to-teleport', '-1', '--tripinfo-output',
                           os.path.join(self.log_dir, self.connection_name, 'tripinfo_' + str(self.run) + '.xml'),
                           '--tripinfo-output.write-unfinished',
                           '--no-step-log', 'True',
                           '--no-warnings', 'True',
-                          '--waiting-time-memory=4000']
+                          '--waiting-time-memory=4000',
+                          '--seed', f"{self.seed}"] # '--random', 
         if self.libsumo:
             traci.start(self.sumo_cmd)
             self.sumo = traci

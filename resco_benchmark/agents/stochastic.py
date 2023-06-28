@@ -1,5 +1,6 @@
 from agents.agent import IndependentAgent, Agent
 import random
+import pickle
 
 
 class STOCHASTIC(IndependentAgent):
@@ -14,9 +15,13 @@ class STOCHASTICAgent(Agent):
     def __init__(self, num_actions):
         super().__init__()
         self.num_actions = num_actions
+        self.random_state = None
 
     def act(self, observation):
         return random.randint(0, self.num_actions-1)
 
     def observe(self, observation, reward, done, info):
         pass
+
+    def save(self, path):
+        pickle.dump(self.random_state, open(f"{path}.pkl", 'wb'))
