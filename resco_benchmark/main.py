@@ -454,7 +454,8 @@ def log_models(dict_with_agents: dict, agt_config: dict, run: Run, agent):
     
     zipped_dir = os.path.join(agt_config["log_dir"], "models")
     shutil.make_archive(zipped_dir, "zip", max_count_of_vehicles_dir)
-    run[f"models/{best_eps_for_count_of_vehicles_completing_journey}"].upload(f"{zipped_dir}.zip", wait=True)
+    # we need to subtract 1 because we are counting from 0, and then divide by 10 to get the validation episode number
+    run[f"models/{(best_eps_for_count_of_vehicles_completing_journey - 1) / 10}"].upload(f"{zipped_dir}.zip", wait=True)
 
     shutil.rmtree(max_count_of_vehicles_dir)
     os.remove(f"{zipped_dir}.zip")

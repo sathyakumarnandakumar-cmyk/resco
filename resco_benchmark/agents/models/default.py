@@ -4,7 +4,6 @@ from pfrl.q_functions import DiscreteActionValueHead
 
 class DefaultModel(nn.Module):
     def __init__(self, obs_space, act_space, h, w, activation):
-        print(obs_space[0])
         super(DefaultModel, self).__init__()
         self.activation = activation
         self.conv1 = nn.Conv2d(obs_space[0], 64, kernel_size=(2, 2))
