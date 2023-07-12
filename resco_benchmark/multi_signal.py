@@ -21,6 +21,7 @@ class MultiSignal(gym.Env):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
         print(map_name, net, state_fn.__name__, reward_fn.__name__)
+        self.run_name = run_name[:-4]
         self.log_dir = log_dir
         self.net = net
         self.route = route
@@ -811,7 +812,10 @@ class MultiSignal(gym.Env):
         with codecs.open(str(Path("environments", "BB5B", "vehicles", "default.yaml")), "r", "utf-8") as file:
             vehicles_descr = yaml.safe_load(file)
 
-        path_to_save_rou = Path("environments", "BB5B", "training_routes_files_generated", "train.rou.xml")
+        path_to_save_rou = Path("environments", "BB5B", "training_routes_files_generated", self.run_name, "train.rou.xml")
+
+        if not os.path.exists(str(path_to_save_rou)[:-14]):
+            os.makedirs(str(path_to_save_rou)[:-14])
 
         # generate random new routes based on original data with routes from 26/11/2020 and 18/03/2021
         if self.run % 2 == 0:
@@ -831,7 +835,7 @@ class MultiSignal(gym.Env):
 
         if rou_generator.path.exists():
             rou_generator.path.unlink()
-        rou_generator.path = Path("environments", "BB5B", "training_routes_files_generated", f"train_{self.run}.rou.xml")
+        rou_generator.path = Path("environments", "BB5B", "training_routes_files_generated", self.run_name, f"train_{self.run}.rou.xml")
         rou_generator(path_from_original_rou=path_from_original_rou)
 
         train_file = rou_generator.path
