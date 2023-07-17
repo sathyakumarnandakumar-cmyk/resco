@@ -66,6 +66,7 @@ def main():
     )
     ap.add_argument("--gui", type=bool, default=False)
     ap.add_argument("--net", type=str, default="default_relu")
+    ap.add_argument("--activation", type=str, default="relu")
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
@@ -170,7 +171,7 @@ def run_trial(args, trial):
             2 if key in env.phases else None,
         ]
     if args.agent == 'IDQN':
-        agent = alg(agt_config, obs_act, args.map, trial, args.net)
+        agent = alg(agt_config, obs_act, args.map, trial, args.net, args.activation)
     else:
         agent = alg(agt_config, obs_act, args.map, trial)
     run = None
@@ -180,6 +181,7 @@ def run_trial(args, trial):
             "number_episodes": args.eps,
             "map": args.map,
             "net": args.net,
+            "activation": args.activation,
             "seed": args.seed
         }
         run = neptune.init_run(
@@ -191,6 +193,7 @@ def run_trial(args, trial):
                 "sumo-v0",
                 f"{args.agent}",
                 f"Net: {args.net}",
+                f"Activation: {args.activation}",
                 "stable-baselines3",
                 # "10 episodes - train, 1 episode - validation on new own generated file",
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",

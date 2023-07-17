@@ -14,7 +14,7 @@ from agents.nets import get_net
 from agents.models.calculate_output_size import conv2d_size_out
 
 class IDQN(IndependentAgent):
-    def __init__(self, config, obs_act, map_name, thread_number, net):
+    def __init__(self, config, obs_act, map_name, thread_number, net, activation):
         super().__init__(config, obs_act, map_name, thread_number)
         for key in obs_act:
             obs_space = obs_act[key][0]
@@ -23,7 +23,7 @@ class IDQN(IndependentAgent):
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
 
-            model = get_net(net, obs_space, act_space, h, w)
+            model = get_net(net, activation, obs_space, act_space, h, w)
             self.agents[key] = DQNAgent(config, act_space, model)
 
 
