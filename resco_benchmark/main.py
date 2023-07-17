@@ -207,10 +207,10 @@ def run_trial(args, trial):
     # A dictionary below stores informations about the most important parameters
     # based on which we'll choose the best model(s).
     dict_with_agents = {}
-    
+
     for i in range(1, args.eps + 1):
         if args.map == "BB5B":
-            if i % 10 != 0:
+            if i % 11 != 0:
                 mode = "training"
             else:
                 mode = "validation"
@@ -455,7 +455,7 @@ def log_models(dict_with_agents: dict, agt_config: dict, run: Run, agent):
     zipped_dir = os.path.join(agt_config["log_dir"], "models")
     shutil.make_archive(zipped_dir, "zip", max_count_of_vehicles_dir)
     # we need to subtract 1 because we are counting from 0, and then divide by 10 to get the validation episode number
-    run[f"models/{(best_eps_for_count_of_vehicles_completing_journey - 1) / 10}"].upload(f"{zipped_dir}.zip", wait=True)
+    run[f"models/{int((best_eps_for_count_of_vehicles_completing_journey - 1) / 10)}"].upload(f"{zipped_dir}.zip", wait=True)
 
     shutil.rmtree(max_count_of_vehicles_dir)
     os.remove(f"{zipped_dir}.zip")
