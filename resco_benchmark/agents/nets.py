@@ -9,7 +9,7 @@ def get_net(net, activation,    obs_space, act_space, h, w):
         'relu': nn.functional.relu,
         'tanh': nn.functional.tanh,
         'leaky_relu': nn.functional.leaky_relu,
-        'swish': swish
+        'swish': nn.functional.silu
     }
     h2 = conv2d_size_out(h)
     w2 = conv2d_size_out(w)
