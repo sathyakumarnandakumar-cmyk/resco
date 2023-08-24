@@ -4,7 +4,7 @@ from agents.models.double_conv import DoubleConv
 from agents.models.calculate_output_size import conv2d_size_out
 
 
-def get_net(net, activation,    obs_space, act_space, h, w):
+def get_net(net, activation, obs_space, act_space, h, w):
     activations = {
         'relu': nn.ReLU,
         'tanh': nn.Tanh,

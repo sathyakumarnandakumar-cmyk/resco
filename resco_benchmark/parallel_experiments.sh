@@ -1,7 +1,7 @@
 #!/bin/bash
 
 agents=("IDQN" "IPPO")
-activations=("relu" "tanh")
+activations=("relu" "tanh" "leaky_relu" "swish")
 nets=("default" "double_conv")
 seeds=(1 2)
 for agent in ${agents[@]}; do
