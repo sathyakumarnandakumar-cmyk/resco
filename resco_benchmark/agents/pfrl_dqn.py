@@ -13,6 +13,7 @@ from agents.agent import IndependentAgent, Agent
 from agents.nets import get_net
 from agents.models.calculate_output_size import conv2d_size_out
 
+
 class IDQN(IndependentAgent):
     def __init__(self, config, obs_act, map_name, thread_number, net, activation):
         super().__init__(config, obs_act, map_name, thread_number)
@@ -25,6 +26,11 @@ class IDQN(IndependentAgent):
 
             model = get_net(net, activation, obs_space, act_space, h, w)
             self.agents[key] = DQNAgent(config, act_space, model)
+
+            if self.config['load']:
+                print('LOADING SAVED MODEL FOR EVALUATION')
+                self.agents[key].load(self.config['log_dir']+'agent_'+key+'.pt')
+                self.agents[key].agent.training = False
 
 
 class DQNAgent(Agent):
@@ -81,6 +87,10 @@ class DQNAgent(Agent):
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
         }, path+'.pt')
+
+    def load(self, path):
+        self.model.load_state_dict(torch.load(path)['model_state_dict'])
+        self.optimizer.load_state_dict(torch.load(path)['optimizer_state_dict'])
 
 
 class SharedDQN(DQN):

@@ -138,7 +138,7 @@ def run_trial(args, trial):
             )
 
     env = MultiSignal(
-        alg.__name__ + "-tr" + str(trial),
+        alg.__name__ + '-net' +args.net + '-activ'+ args.activation + '-seed' +args.seed +"-tr" + str(trial),
         args.map,
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
