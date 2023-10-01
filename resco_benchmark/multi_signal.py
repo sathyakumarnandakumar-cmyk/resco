@@ -21,7 +21,7 @@ class MultiSignal(gym.Env):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
         print(map_name, net, state_fn.__name__, reward_fn.__name__)
-        self.run_name = run_name[:-4]
+        self.run_name = run_name
         self.log_dir = log_dir
         self.net = net
         self.route = route
