@@ -1,3 +1,4 @@
+from typing import Dict, Literal
 import torch
 
 
@@ -14,13 +15,22 @@ class Agent(object):
 
     def observe(self, observation, reward, done, info):
         raise NotImplementedError
+    
+    def set_mode(self, mode: Literal['train', 'eval']):
+        raise NotImplementedError
+
+    def eval_mode(self):
+        raise NotImplementedError
+    
+    def train_mode(self):
+        raise NotImplementedError
 
 
 class IndependentAgent(Agent):
     def __init__(self, config, obs_act, map_name, thread_number):
         super().__init__()
         self.config = config
-        self.agents = dict()
+        self.agents: Dict[str, Agent] = dict()
 
     def act(self, observation):
         acts = dict()
@@ -34,6 +44,10 @@ class IndependentAgent(Agent):
             # if done:
             #    if info['eps'] % self.config['save_freq'] == 0:
             #        self.agents[agent_id].save(self.config['log_dir']+'agent_'+agent_id)
+
+    def set_mode(self, mode: Literal['train', 'eval']):
+        for agent in self.agents.values():
+            agent.set_mode(mode)
 
 
 class SharedAgent(Agent):
@@ -77,3 +91,6 @@ class SharedAgent(Agent):
         # if done:
         #      if info['eps'] % self.config['save_freq'] == 0:
         #         self.agent.save(self.config['log_dir']+'agent')
+
+    def set_mode(self, mode: Literal['train', 'eval']):
+        self.agent.set_mode(mode)

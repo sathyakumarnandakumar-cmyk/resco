@@ -1,3 +1,4 @@
+from typing import Literal
 import numpy as np
 
 import torch
@@ -9,6 +10,7 @@ from pfrl.agents import PPO
 from pfrl.policies import SoftmaxCategoricalHead
 
 from agents.agent import IndependentAgent, Agent
+from .utils import set_pfrl_agent_mode
 
 
 def lecun_init(layer, gain=1):
@@ -89,3 +91,6 @@ class PFRLPPOAgent(Agent):
     def load(self, path):
         self.model.load_state_dict(torch.load(path)['model_state_dict'])
         self.optimizer.load_state_dict(torch.load(path)['optimizer_state_dict'])
+
+    def set_mode(self, mode: Literal['train', 'eval']):
+        set_pfrl_agent_mode(self.agent, mode)

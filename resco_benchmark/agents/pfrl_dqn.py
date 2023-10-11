@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence
 import numpy as np
 
 import torch
@@ -12,7 +12,7 @@ from pfrl.utils.contexts import evaluating
 from agents.agent import IndependentAgent, Agent
 from agents.nets import get_net
 from agents.models.calculate_output_size import conv2d_size_out
-
+from .utils import set_pfrl_agent_mode
 
 class IDQN(IndependentAgent):
     def __init__(self, config, obs_act, map_name, thread_number, net, activation):
@@ -91,6 +91,9 @@ class DQNAgent(Agent):
     def load(self, path):
         self.model.load_state_dict(torch.load(path)['model_state_dict'])
         self.optimizer.load_state_dict(torch.load(path)['optimizer_state_dict'])
+
+    def set_mode(self, mode: Literal['train', 'eval']):
+        set_pfrl_agent_mode(self.agent, mode)
 
 
 class SharedDQN(DQN):
