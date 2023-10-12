@@ -14,7 +14,7 @@ def get_net(net, activation, obs_space, act_space, h, w):
     h2 = conv2d_size_out(h)
     w2 = conv2d_size_out(w)
     other_nets = {
-        "default" : DefaultModel(obs_space=obs_space,
+        "default": DefaultModel(obs_space=obs_space,
                             act_space=act_space,
                             h=h,
                             w=w,

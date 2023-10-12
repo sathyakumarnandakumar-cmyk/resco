@@ -65,7 +65,7 @@ def main():
     )
     ap.add_argument("--gui", type=bool, default=False)
     ap.add_argument("--load", type=bool, default=False)
-    ap.add_argument("--net", type=str, default="default_relu")
+    ap.add_argument("--net", type=str, default="default")
     ap.add_argument("--activation", type=str, default="relu")
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
