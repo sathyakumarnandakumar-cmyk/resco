@@ -280,7 +280,9 @@ class MultiSignal(gym.Env):
 
         self.calc_metrics(rewards)
 
-        done = self.sim_step >= self.end_time
+        # Increase simulation time by 4 (240 s) additional minutes to the vehicles, which appeared at the end of the
+        # simulation, had a chance to complete their routes
+        done = self.sim_step >= (self.end_time + 240)
         if done and self.map_name == "BB5B":
             self.calculate_travel_time_and_delays()
             count_of_vehicles_completing_journey = self.get_number_of_vehicles_completing_journey()
