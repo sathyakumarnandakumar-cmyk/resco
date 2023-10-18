@@ -818,10 +818,10 @@ class MultiSignal(gym.Env):
             os.makedirs(str(path_to_save_rou)[:-14])
 
         # generate random new routes based on original data with routes from 26/11/2020 and 18/03/2021
-        if self.run % 2 == 0:
-            path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "26NovFull", "BB5B_7-8am.rou.xml")
-        else:
-            path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "18MarFull", "BB5B_7-8am.rou.xml")
+        # if self.run % 2 == 0:
+        path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "26NovFull", "BB5B_7-8am.rou.xml")
+        # else:
+        # path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "18MarFull", "BB5B_7-8am.rou.xml")
 
         rou_generator = RoutesGenerator(
             path_to_save_rou=path_to_save_rou,
