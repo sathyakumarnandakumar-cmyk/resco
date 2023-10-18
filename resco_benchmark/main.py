@@ -512,6 +512,7 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
                         "total_average_delays_of_all_vehicles_with_weights"
                     ]
                 )
+                """
                 for veh_type in buf_infos["routes"][route_id]["vehicle_type"]:
                     run[
                         "metrics/"
@@ -616,6 +617,7 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
                         != 0
                         else 0
                     )
+                """
 
 
 def log_models(dict_with_agents: dict, agt_config: dict, run: Run, agent):
