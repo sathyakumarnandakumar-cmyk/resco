@@ -95,12 +95,10 @@ class Signal:
 
         self.waiting_times = dict()     # SUMO's WaitingTime and AccumulatedWaiting are both wrong for multiple signals
 
-        self.phases = traci.trafficlight.getCompleteRedYellowGreenDefinition(self.id)[0].phases
-        # logic = self.sumo.trafficlight.Logic(id, 0, 0, phases=self.phases) # not compatible with libsumo
         programs = self.sumo.trafficlight.getAllProgramLogics(self.id)
         logic = programs[0]
         logic.type = 0
-        logic.phases = self.phases
+        self.phases = logic.phases
         self.sumo.trafficlight.setProgramLogic(self.id, logic)
 
         self.signals = None     # Used to allow signal sharing
