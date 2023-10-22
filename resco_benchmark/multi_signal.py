@@ -84,7 +84,7 @@ class MultiSignal(gym.Env):
         observations = self.state_fn(self.signals)
         self.ts_order = list()
         for ts in observations:
-            if ts == 'top_mgr' or ts == 'bot_mgr': continue     # Not a traffic signal
+            # if ts == 'top_mgr' or ts == 'bot_mgr': continue     # Not a traffic signal
             o_shape = observations[ts].shape
             self.obs_shape[ts] = o_shape
             o_shape = gym.spaces.Box(low=-np.inf, high=np.inf, shape=o_shape)
@@ -151,7 +151,7 @@ class MultiSignal(gym.Env):
     def step_sim(self):
         # The monaco scenario expects .25s steps instead of 1s, account for that here.
         for _ in range(self.step_ratio):
-            if self.sim_step == 25201:
+            if self.map_name == "BB5B" and self.sim_step == 25201:
                 traci.trafficlight.setPhase("INFMain_Junc", 5)
             self.sumo.simulationStep()
             if self.map_name == "BB5B" and self.run is not None:
