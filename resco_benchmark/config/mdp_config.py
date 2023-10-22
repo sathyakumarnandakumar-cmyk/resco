@@ -251,6 +251,23 @@ mdp_configs = {
                 'top_mgr': []
             }
         },
+        'BB5B': {
+            'coef': 0.4,
+            'coop_gamma': 0.9,
+            'clip_wave': 4.0,
+            'clip_wait': 4.0,
+            'norm_wave': 5.0,
+            'norm_wait': 100.0,
+            'alpha': 0.75,
+            'management': {
+                'top_mgr': ['INFMain_Junc', 'SIRIM_Junc'],
+                'bot_mgr': ['PBB_Junc']
+            },
+            'management_neighbors': {
+                'top_mgr': ['bot_mgr'],
+                'bot_mgr': ['top_mgr']
+            }
+        },
     },
     'FMA2CVAL': {
         'grid4x4': {
@@ -397,6 +414,23 @@ mdp_configs = {
             },
             'management_neighbors': {
                 'top_mgr': []
+            }
+        },
+        'BB5B': {
+            'coef': 0.4,
+            'coop_gamma': 0.9,
+            'clip_wave': 4.0,
+            'clip_wait': 4.0,
+            'norm_wave': 5.0,
+            'norm_wait': 100.0,
+            'alpha': 0.75,
+            'management': {
+                'top_mgr': ['INFMain_Junc', 'SIRIM_Junc'],
+                'bot_mgr': ['PBB_Junc']
+            },
+            'management_neighbors': {
+                'top_mgr': ['bot_mgr'],
+                'bot_mgr': ['top_mgr']
             }
         },
     }
