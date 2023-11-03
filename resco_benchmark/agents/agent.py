@@ -1,6 +1,6 @@
-from typing import Dict, Literal
+from typing import Dict
 import torch
-
+from agents.utils import AGENT_MODES
 
 class Agent(object):
     def __init__(self):
@@ -16,13 +16,7 @@ class Agent(object):
     def observe(self, observation, reward, done, info):
         raise NotImplementedError
     
-    def set_mode(self, mode: Literal['train', 'eval']):
-        raise NotImplementedError
-
-    def eval_mode(self):
-        raise NotImplementedError
-    
-    def train_mode(self):
+    def set_mode(self, mode: AGENT_MODES):
         raise NotImplementedError
 
 
@@ -45,7 +39,7 @@ class IndependentAgent(Agent):
             #    if info['eps'] % self.config['save_freq'] == 0:
             #        self.agents[agent_id].save(self.config['log_dir']+'agent_'+agent_id)
 
-    def set_mode(self, mode: Literal['train', 'eval']):
+    def set_mode(self, mode: AGENT_MODES):
         for agent in self.agents.values():
             agent.set_mode(mode)
 
@@ -92,5 +86,5 @@ class SharedAgent(Agent):
         #      if info['eps'] % self.config['save_freq'] == 0:
         #         self.agent.save(self.config['log_dir']+'agent')
 
-    def set_mode(self, mode: Literal['train', 'eval']):
+    def set_mode(self, mode: AGENT_MODES):
         self.agent.set_mode(mode)
