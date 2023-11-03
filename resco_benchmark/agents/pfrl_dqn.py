@@ -14,6 +14,7 @@ from agents.nets import get_net
 from agents.models.calculate_output_size import conv2d_size_out
 from agents.utils import set_pfrl_agent_mode, AGENT_MODES
 
+
 class IDQN(IndependentAgent):
     def __init__(self, config, obs_act, map_name, thread_number, net, activation):
         super().__init__(config, obs_act, map_name, thread_number)
@@ -94,7 +95,6 @@ class DQNAgent(Agent):
 
     def set_mode(self, mode: AGENT_MODES):
         set_pfrl_agent_mode(self.agent, mode)
-
 
 class SharedDQN(DQN):
     def __init__(self, q_function: torch.nn.Module, optimizer: torch.optim.Optimizer,

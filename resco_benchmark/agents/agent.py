@@ -2,6 +2,7 @@ from typing import Dict
 import torch
 from agents.utils import AGENT_MODES
 
+
 class Agent(object):
     def __init__(self):
         if torch.cuda.is_available():
