@@ -1,4 +1,6 @@
+from typing import Dict
 import torch
+from agents.utils import AGENT_MODES
 
 
 class Agent(object):
@@ -14,13 +16,16 @@ class Agent(object):
 
     def observe(self, observation, reward, done, info):
         raise NotImplementedError
+    
+    def set_mode(self, mode: AGENT_MODES):
+        raise NotImplementedError
 
 
 class IndependentAgent(Agent):
     def __init__(self, config, obs_act, map_name, thread_number):
         super().__init__()
         self.config = config
-        self.agents = dict()
+        self.agents: Dict[str, Agent] = dict()
 
     def act(self, observation):
         acts = dict()
@@ -34,6 +39,10 @@ class IndependentAgent(Agent):
             # if done:
             #    if info['eps'] % self.config['save_freq'] == 0:
             #        self.agents[agent_id].save(self.config['log_dir']+'agent_'+agent_id)
+
+    def set_mode(self, mode: AGENT_MODES):
+        for agent in self.agents.values():
+            agent.set_mode(mode)
 
 
 class SharedAgent(Agent):
@@ -77,3 +86,6 @@ class SharedAgent(Agent):
         # if done:
         #      if info['eps'] % self.config['save_freq'] == 0:
         #         self.agent.save(self.config['log_dir']+'agent')
+
+    def set_mode(self, mode: AGENT_MODES):
+        self.agent.set_mode(mode)

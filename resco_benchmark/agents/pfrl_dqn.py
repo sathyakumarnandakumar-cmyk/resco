@@ -12,6 +12,7 @@ from pfrl.utils.contexts import evaluating
 from agents.agent import IndependentAgent, Agent
 from agents.nets import get_net
 from agents.models.calculate_output_size import conv2d_size_out
+from agents.utils import set_pfrl_agent_mode, AGENT_MODES
 
 
 class IDQN(IndependentAgent):
@@ -92,6 +93,8 @@ class DQNAgent(Agent):
         self.model.load_state_dict(torch.load(path)['model_state_dict'])
         self.optimizer.load_state_dict(torch.load(path)['optimizer_state_dict'])
 
+    def set_mode(self, mode: AGENT_MODES):
+        set_pfrl_agent_mode(self.agent, mode)
 
 class SharedDQN(DQN):
     def __init__(self, q_function: torch.nn.Module, optimizer: torch.optim.Optimizer,
