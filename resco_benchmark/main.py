@@ -16,6 +16,7 @@ from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
 
 START_TIME = datetime.now().strftime("%d_%m_%H_%M")
+VALIDATION_INTERVAL = 11
 
 
 def main():
@@ -39,7 +40,7 @@ def main():
         ],
     )
     ap.add_argument("--trials", type=int, default=1)
-    ap.add_argument("--eps", type=int, default=100)
+    ap.add_argument("--eps_val", type=int, default=10)
     ap.add_argument("--procs", type=int, default=1)
     ap.add_argument(
         "--map",
@@ -63,6 +64,11 @@ def main():
         type=str,
         default=os.path.join(os.path.dirname(os.getcwd()), "results" + os.sep),
     )
+    ap.add_argument(
+        "--models_dir",
+        type=str,
+        default=os.path.join(os.path.dirname(os.getcwd()), "models" + os.sep),
+    )
     ap.add_argument("--gui", type=bool, default=False)
     ap.add_argument("--load", type=bool, default=False)
     ap.add_argument("--net", type=str, default="default")
@@ -78,6 +84,9 @@ def main():
         raise EnvironmentError(
             "Set LIBSUMO_AS_TRACI to nonempty value to enable libsumo"
         )
+
+    if not os.path.exists(args.models_dir):
+        os.mkdir(args.models_dir)
 
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -162,12 +171,19 @@ def run_trial(args, trial):
         seed=args.seed,
     )
 
-    agt_config["episodes"] = int(args.eps * 0.8)  # schedulers decay over 80% of steps
+    agt_config["episodes"] = int(args.eps_val * 0.8)  # schedulers decay over 80% of steps
     agt_config["steps"] = agt_config["episodes"] * num_steps_eps
     agt_config["log_dir"] = os.path.join(args.log_dir, env.connection_name)
+    agt_config["models_dir"] = os.path.join(args.models_dir, env.connection_name)
+    agt_config["models_for_visualization"] = os.path.join(args.models_dir, "models_for_visualization")
     agt_config["num_lights"] = len(env.all_ts_ids)
     agt_config["load"] = args.load
 
+    if not os.path.exists(agt_config["models_dir"]):
+        os.mkdir(agt_config["models_dir"])
+    if not os.path.exists(agt_config["models_for_visualization"]):
+        os.mkdir(agt_config["models_for_visualization"])
+    
     # Get agent id's, observation shapes, and action sizes from env
     obs_act = dict()
     for key in env.obs_shape:
@@ -183,7 +199,7 @@ def run_trial(args, trial):
     if args.map == "BB5B":
         PARAMS_ALGORITHM = {
             "algorithm": args.agent,
-            "number_episodes": args.eps,
+            "number_episodes": args.eps_val * VALIDATION_INTERVAL,
             "map": args.map,
             "net": args.net,
             "activation": args.activation,
@@ -216,12 +232,14 @@ def run_trial(args, trial):
     # based on which we'll choose the best model(s).
     dict_with_agents = {}
 
-    for i in range(1, args.eps + 1):
+    for i in range(1, args.eps_val*VALIDATION_INTERVAL + 1):
         if args.map == "BB5B":
-            if i % 11 != 0:
+            if i % VALIDATION_INTERVAL != 0:
                 mode = "training"
+                agent.set_mode("training")
             else:
                 mode = "validation"
+                agent.set_mode("validation")
             env.mode = mode
         obs = env.reset()
         done = False
@@ -236,27 +254,34 @@ def run_trial(args, trial):
             if args.agent == "STOCHASTIC":
                 for _, model in agent.agents.items():
                     model.random_state = random.getstate()
-                    break
-
-            dict_with_agents[f"eps_{i}"] = {
-                "agents": agent.agents,
+            validation_eps_number = int(i/VALIDATION_INTERVAL - 1)
+            dict_with_agents[f"eps_{validation_eps_number}"] = {
                 "total_average_delays_of_all_vehicles_from_all_routes": info[
                     "total_average_delays_of_all_vehicles_from_all_routes"
                 ],
                 "count_of_vehicles_completing_journey": info[
                     "count_of_vehicles_completing_journey"
-                ],
+                ]
             }
+
+            valid_models_subdir = os.path.join(agt_config["models_dir"], f"eps_{validation_eps_number}")
+            if not os.path.exists(valid_models_subdir):
+                os.mkdir(valid_models_subdir)
+
+            for model_name, model in agent.agents.items():
+                model.save(os.path.join(valid_models_subdir, model_name))
 
     env.close()
 
     if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
-        log_models(
+        best_validation_model, zipped_best_model = make_archive(
             dict_with_agents=dict_with_agents,
-            agt_config=agt_config,
-            run=run,
-            agent=args.agent,
+            valid_models_dir=agt_config["models_dir"]
         )
+        run[
+            f"models/{best_validation_model}"
+            ].upload(f"{zipped_best_model}.zip", wait=True)
+        shutil.rmtree(agt_config["models_dir"])
 
 
 def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
@@ -620,7 +645,7 @@ def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
                 """
 
 
-def log_models(dict_with_agents: dict, agt_config: dict, run: Run, agent):
+def choose_best_validation_model(dict_with_agents: dict):
     # Determining the maximum value of count_of_vehicles
     max_count_of_vehicles = max(
         [
@@ -653,34 +678,16 @@ def log_models(dict_with_agents: dict, agt_config: dict, run: Run, agent):
         )
     ][0]
 
-    max_count_of_vehicles_dir = os.path.join(
-        agt_config["log_dir"],
-        f"max_count_of_vehicles_{START_TIME}_{best_eps_for_count_of_vehicles_completing_journey}",
-    )
+    return best_eps_for_count_of_vehicles_completing_journey
 
-    if not os.path.exists(max_count_of_vehicles_dir):
-        os.mkdir(max_count_of_vehicles_dir)
 
-    for agent_name, model in dict_with_agents[
-        best_eps_for_count_of_vehicles_completing_journey
-    ]["agents"].items():
-        model_save_path = os.path.join(max_count_of_vehicles_dir, agent_name)
-        model.save(model_save_path)
-        if agent == "STOCHASTIC":
-            break
-
-    best_eps_for_count_of_vehicles_completing_journey = int(
-        best_eps_for_count_of_vehicles_completing_journey.split("_")[1]
-    )
-    zipped_dir = os.path.join(agt_config["log_dir"], "models")
-    shutil.make_archive(zipped_dir, "zip", max_count_of_vehicles_dir)
-    # we need to subtract 1 because we are counting from 0, and then divide by 10 to get the validation episode number
-    run[
-        f"models/eps_{int((best_eps_for_count_of_vehicles_completing_journey - 1) / 10)}"
-    ].upload(f"{zipped_dir}.zip", wait=True)
-
-    shutil.rmtree(max_count_of_vehicles_dir)
-    os.remove(f"{zipped_dir}.zip")
+def make_archive(dict_with_agents: dict, valid_models_dir: str):
+    best_validation_model = choose_best_validation_model(
+            dict_with_agents=dict_with_agents
+        )
+    zipped_best_model = os.path.join(valid_models_dir, best_validation_model)
+    shutil.make_archive(zipped_best_model, "zip", zipped_best_model)
+    return best_validation_model, zipped_best_model
 
 
 if __name__ == "__main__":
