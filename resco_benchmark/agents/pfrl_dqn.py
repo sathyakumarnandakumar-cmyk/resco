@@ -30,7 +30,7 @@ class IDQN(IndependentAgent):
 
             if self.config['load']:
                 print('LOADING SAVED MODEL FOR EVALUATION')
-                self.agents[key].load(self.config['log_dir']+'agent_'+key+'.pt')
+                self.agents[key].load(config["models_for_visualization"] + key + ".pt")
                 self.agents[key].agent.training = False
 
 
