@@ -2,8 +2,9 @@ import argparse
 import multiprocessing as mp
 import os
 import random
-from datetime import datetime
+import shutil
 
+import neptune.new as neptune
 import numpy as np
 import torch
 
@@ -12,48 +13,16 @@ from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
 
-START_TIME = datetime.now().strftime("%d_%m_%H_%M")
-
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
-        "--agent",
+        "--experiment_name",
         type=str,
-        default="STOCHASTIC",
-        choices=[
-            "STOCHASTIC",
-            "MAXWAVE",
-            "MAXPRESSURE",
-            "IDQN",
-            "IPPO",
-            "MPLight",
-            "MA2C",
-            "FMA2C",
-            "MPLightFULL",
-            "FMA2CFull",
-            "FMA2CVAL",
-        ],
+        required=True
     )
     ap.add_argument("--trials", type=int, default=1)
-    ap.add_argument("--eps", type=int, default=100)
     ap.add_argument("--procs", type=int, default=1)
-    ap.add_argument(
-        "--map",
-        type=str,
-        default="BB5B",
-        choices=[
-            "grid4x4",
-            "arterial4x4",
-            "ingolstadt1",
-            "ingolstadt7",
-            "ingolstadt21",
-            "cologne1",
-            "cologne3",
-            "cologne8",
-            "BB5B",
-        ],
-    )
     ap.add_argument("--pwd", type=str, default=os.path.dirname(__file__))
     ap.add_argument(
         "--log_dir",
@@ -65,50 +34,62 @@ def main():
         type=str,
         default=os.path.join(os.path.dirname(os.getcwd()), "models" + os.sep),
     )
-    ap.add_argument("--gui", type=bool, default=False)
+    ap.add_argument("--gui", type=bool, default=True)
     ap.add_argument("--load", type=bool, default=True)
-    ap.add_argument("--net", type=str, default="default")
-    ap.add_argument("--activation", type=str, default="relu")
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
     )  # Can't multi-thread with libsumo, provide a trial number
-    ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
     if args.libsumo and "LIBSUMO_AS_TRACI" not in os.environ:
         raise EnvironmentError(
             "Set LIBSUMO_AS_TRACI to nonempty value to enable libsumo"
         )
+    
+    run = neptune.init_run(
+        api_token=None,
+        project="pgora/Malaysia2",
+        with_id=args.experiment_name,
+        mode="read-only"
+    )
+    agent, map, episodes, net, activation, seed = fetch_experiment_data(run)
 
-    np.random.seed(args.seed)
-    random.seed(args.seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
     torch.use_deterministic_algorithms(True)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
     if args.procs == 1 or args.libsumo:
-        run_trial(args, args.tr)
+        run_trial(args, args.tr, run, agent=agent, map=map, episodes=episodes, net=net, activation=activation, seed=seed)
     else:
         pool = mp.Pool(processes=args.procs)
         for trial in range(1, args.trials + 1):
-            pool.apply_async(run_trial, args=(args, trial))
+            pool.apply_async(run_trial, args=(args, trial, run), kwds={"agent": agent, "map": map, "episodes": episodes, "net": net, "activation": activation, "seed": seed})
         pool.close()
         pool.join()
 
 
-def run_trial(args, trial):
-    mdp_config = mdp_configs.get(args.agent)
+def run_trial(args, trial, run, **kwargs):
+    agent = kwargs.get("agent")
+    map = kwargs.get("map")
+    episodes = kwargs.get("episodes")
+    net = kwargs.get("net")
+    activation = kwargs.get("activation")
+    seed = kwargs.get("seed")
+    
+    mdp_config = mdp_configs.get(agent)
     if mdp_config is not None:
-        mdp_map_config = mdp_config.get(args.map)
+        mdp_map_config = mdp_config.get(map)
         if mdp_map_config is not None:
             mdp_config = mdp_map_config
-        mdp_configs[args.agent] = mdp_config
+        mdp_configs[agent] = mdp_config
 
-    agt_config = agent_configs[args.agent]
+    agt_config = agent_configs[agent]
     alg = agt_config["agent"]
 
     if mdp_config is not None:
@@ -122,14 +103,14 @@ def run_trial(args, trial):
                     supervisors[worker] = manager
             mdp_config["supervisors"] = supervisors
 
-    map_config = map_configs[args.map]
+    map_config = map_configs[map]
     num_steps_eps = int(
         (map_config["end_time"] - map_config["start_time"]) / map_config["step_length"]
     )
     route = map_config["route"]
     if route is not None:
         route = os.path.join(args.pwd, route)
-    if args.map == "grid4x4" or args.map == "arterial4x4":
+    if map == "grid4x4" or map == "arterial4x4":
         if not os.path.exists(route):
             raise EnvironmentError(
                 "You must decompress environment files defining traffic flow"
@@ -138,14 +119,14 @@ def run_trial(args, trial):
     env = MultiSignal(
         alg.__name__
         + "-net"
-        + args.net
+        + net
         + "-activ"
-        + args.activation
+        + activation
         + "-seed"
-        + str(args.seed)
+        + str(seed)
         + "-tr"
         + str(trial),
-        args.map,
+        map,
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
         agt_config["reward"],
@@ -161,16 +142,23 @@ def run_trial(args, trial):
         log_dir=args.log_dir,
         libsumo=args.libsumo,
         warmup=map_config["warmup"],
-        seed=args.seed,
+        seed=seed,
     )
 
-    agt_config["episodes"] = int(args.eps * 0.8)  # schedulers decay over 80% of steps
-    agt_config["steps"] = agt_config["episodes"] * num_steps_eps
+    agt_config["episodes"] = int(episodes * 0.8)  # schedulers decay over 80% of steps
+    agt_config["steps"] = episodes * num_steps_eps
     agt_config["log_dir"] = os.path.join(args.log_dir, env.connection_name)
     agt_config["models_dir"] = os.path.join(args.models_dir, env.connection_name)
     agt_config["models_for_visualization"] = os.path.join(args.models_dir, "models_for_visualization" + os.sep)
     agt_config["num_lights"] = len(env.all_ts_ids)
     agt_config["load"] = args.load
+    
+    if not os.path.exists(args.models_dir):
+        os.mkdir(args.models_dir)
+    if not os.path.exists(agt_config["models_for_visualization"]):
+        os.mkdir(agt_config["models_for_visualization"])
+
+    download_models(run, agt_config["models_for_visualization"])
 
     # Get agent id's, observation shapes, and action sizes from env
     obs_act = dict()
@@ -179,10 +167,11 @@ def run_trial(args, trial):
             env.obs_shape[key],
             2 if key in env.phases else None,
         ]
-    if args.agent == "IDQN":
-        agent = alg(agt_config, obs_act, args.map, trial, args.net, args.activation)
+    if agent == "IDQN":
+        agent = alg(agt_config, obs_act, map, trial, net, activation)
     else:
-        agent = alg(agt_config, obs_act, args.map, trial)
+        agent = alg(agt_config, obs_act, map, trial)
+    remove_files(agt_config["models_for_visualization"])
     mode = "validation"
     env.mode = mode
     obs = env.reset()
@@ -194,6 +183,37 @@ def run_trial(args, trial):
         agent.observe(obs, rew, done, info)
         
     env.close()
+
+
+def download_models(run: neptune.Run, path_to_models: str):
+    if not run.exists("models"):
+        raise FileNotFoundError("Directory 'models' does not exists.")
+    model_name = list(run.get_structure().get("models").keys())[0]
+    run[f"models/{model_name}"].download(path_to_models)
+    
+    shutil.unpack_archive(filename=os.path.join(path_to_models, f"{model_name}.zip"),
+                          extract_dir=path_to_models,
+                          format="zip")
+
+
+def fetch_experiment_data(run: neptune.Run):
+    params = run["parameters"].fetch()
+    agent = params.get("algorithm")
+    map = params.get("map")
+    episodes = params.get("number_episodes")
+    net = params.get("net")
+    activation = params.get("activation")
+    seed = params.get("seed")
+    return agent, map, episodes, net, activation, seed
+
+
+def remove_files(path: str):
+    for file in os.listdir(path):
+        if not file.startswith("."):
+            try:
+                shutil.rmtree(path=os.path.join(path, file))
+            except NotADirectoryError:
+                os.remove(path=os.path.join(path, file))
 
 
 if __name__ == "__main__":
