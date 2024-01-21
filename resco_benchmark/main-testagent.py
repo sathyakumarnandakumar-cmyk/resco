@@ -53,7 +53,7 @@ def main():
         with_id=args.experiment_name,
         mode="read-only"
     )
-    agent, map, episodes, net, activation, seed = fetch_experiment_data(run)
+    agent, map, episodes, net, activation, seed, negative_slope = fetch_experiment_data(run)
 
     np.random.seed(seed)
     random.seed(seed)
@@ -65,11 +65,25 @@ def main():
     torch.backends.cudnn.benchmark = False
 
     if args.procs == 1 or args.libsumo:
-        run_trial(args, args.tr, run, agent=agent, map=map, episodes=episodes, net=net, activation=activation, seed=seed)
+        run_trial(args, args.tr, run, 
+                  agent=agent, 
+                  map=map, 
+                  episodes=episodes, 
+                  net=net, 
+                  activation=activation, 
+                  seed=seed, 
+                  negative_slope=negative_slope)
     else:
         pool = mp.Pool(processes=args.procs)
         for trial in range(1, args.trials + 1):
-            pool.apply_async(run_trial, args=(args, trial, run), kwds={"agent": agent, "map": map, "episodes": episodes, "net": net, "activation": activation, "seed": seed})
+            pool.apply_async(run_trial, args=(args, trial, run), 
+                             kwds={"agent": agent, 
+                                   "map": map, 
+                                   "episodes": episodes, 
+                                   "net": net, 
+                                   "activation": activation, 
+                                   "seed": seed, 
+                                   "negative_slope": negative_slope})
         pool.close()
         pool.join()
 
@@ -81,6 +95,7 @@ def run_trial(args, trial, run, **kwargs):
     net = kwargs.get("net")
     activation = kwargs.get("activation")
     seed = kwargs.get("seed")
+    negative_slope = kwargs.get("negative_slope")
     
     mdp_config = mdp_configs.get(agent)
     if mdp_config is not None:
@@ -122,6 +137,7 @@ def run_trial(args, trial, run, **kwargs):
         + net
         + "-activ"
         + activation
+        + (f"-neg_slope{args.negative_slope}" if args.activation == "leaky_relu" else "")
         + "-seed"
         + str(seed)
         + "-tr"
@@ -168,7 +184,10 @@ def run_trial(args, trial, run, **kwargs):
             2 if key in env.phases else None,
         ]
     if agent == "IDQN":
-        agent = alg(agt_config, obs_act, map, trial, net, activation)
+        agent = alg(agt_config, obs_act, map, trial, 
+                    net=net, 
+                    activation=activation,
+                    negative_slope=negative_slope)
     else:
         agent = alg(agt_config, obs_act, map, trial)
     remove_files(agt_config["models_for_visualization"])
@@ -204,7 +223,8 @@ def fetch_experiment_data(run: neptune.Run):
     net = params.get("net")
     activation = params.get("activation")
     seed = params.get("seed")
-    return agent, map, episodes, net, activation, seed
+    negative_slope = params.get("negative_slope", 0.01)
+    return agent, map, episodes, net, activation, seed, negative_slope
 
 
 def remove_files(path: str):

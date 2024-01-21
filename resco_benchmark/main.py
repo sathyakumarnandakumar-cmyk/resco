@@ -73,6 +73,8 @@ def main():
     ap.add_argument("--load", type=bool, default=False)
     ap.add_argument("--net", type=str, default="default")
     ap.add_argument("--activation", type=str, default="relu")
+    # Allows you to manipulate the slope of the leaky_relu chart
+    ap.add_argument("--negative_slope", type=float, default=0.01)
     ap.add_argument("--libsumo", type=bool, default=False)
     ap.add_argument(
         "--tr", type=int, default=0
@@ -148,6 +150,7 @@ def run_trial(args, trial):
         + args.net
         + "-activ"
         + args.activation
+        + (f"-neg_slope{args.negative_slope}" if args.activation == "leaky_relu" else "")
         + "-seed"
         + str(args.seed)
         + "-tr"
@@ -192,7 +195,10 @@ def run_trial(args, trial):
             2 if key in env.phases else None,
         ]
     if args.agent == "IDQN":
-        agent = alg(agt_config, obs_act, args.map, trial, args.net, args.activation)
+        agent = alg(agt_config, obs_act, args.map, trial, 
+                    net=args.net,
+                    activation=args.activation,
+                    negative_slope=args.negative_slope)
     else:
         agent = alg(agt_config, obs_act, args.map, trial)
     run = None
@@ -205,6 +211,9 @@ def run_trial(args, trial):
             "activation": args.activation,
             "seed": args.seed,
         }
+        if args.activation == "leaky_relu":
+            PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
+        
         run = neptune.init_run(
             api_token=None,
             project="pgora/Malaysia2",

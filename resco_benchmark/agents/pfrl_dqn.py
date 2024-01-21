@@ -16,7 +16,7 @@ from agents.utils import set_pfrl_agent_mode, AGENT_MODES
 
 
 class IDQN(IndependentAgent):
-    def __init__(self, config, obs_act, map_name, thread_number, net, activation):
+    def __init__(self, config, obs_act, map_name, thread_number, **kwargs):
         super().__init__(config, obs_act, map_name, thread_number)
         for key in obs_act:
             obs_space = obs_act[key][0]
@@ -25,7 +25,13 @@ class IDQN(IndependentAgent):
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
 
-            model = get_net(net, activation, obs_space, act_space, h, w)
+            model = get_net(net=kwargs.get("net"),
+                            activation=kwargs.get("activation"),
+                            obs_space=obs_space,
+                            act_space=act_space,
+                            h=h,
+                            w=w,
+                            negative_slope=kwargs.get("negative_slope"))
             self.agents[key] = DQNAgent(config, act_space, model)
 
             if self.config['load']:
