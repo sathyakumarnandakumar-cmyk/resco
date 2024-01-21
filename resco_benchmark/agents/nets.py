@@ -4,12 +4,12 @@ from agents.models.double_conv import DoubleConv
 from agents.models.calculate_output_size import conv2d_size_out
 
 
-def get_net(net, activation, obs_space, act_space, h, w):
+def get_net(net, activation, obs_space, act_space, h, w, **kwargs):
     activations = {
-        'relu': nn.functional.relu,
-        'tanh': nn.functional.tanh,
-        'leaky_relu': nn.functional.leaky_relu,
-        'swish': nn.functional.silu
+        "relu": nn.ReLU(),
+        "tanh": nn.Tanh(),
+        "leaky_relu": nn.LeakyReLU(negative_slope=kwargs.get("negative_slope")),
+        "swish": nn.SiLU()
     }
     h2 = conv2d_size_out(h)
     w2 = conv2d_size_out(w)
@@ -28,5 +28,3 @@ def get_net(net, activation, obs_space, act_space, h, w):
         )
     }
     return other_nets[net]
-    
-    
