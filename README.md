@@ -1,46 +1,220 @@
-# RESCO
-![Alt text](scenarios.png?raw=true "Provided SUMO scenarios")
+# TABLE OF CONTENTS
+1. **[PROJECT REQUIREMENTS](#setup)**
+    - 1.1. **[REQUIRED TOOLS / PACKAGES](#requirements)**
+    - 1.2. **[HOW TO GET Neptune.ai TOKEN](#neptune_token)**
+2. **[HOW TO RUN AN EXPERIMENT](#run_experiment)**
+    - 2.1. **[EXAMPLE: HOW TO RUN AN EXPERIMENT](#example_run_experiment)**
+3. **[HOW TO VISUALIZE AN EXPERIMENT](#visualization)**
+<br></br>
 
 
-Source code implementing the Reinforcement Learning Benchmarks for Traffic Signal Control (RESCO).
 
-The benchmark uses the Simulation for Urban Mobility (SUMO), which must be [installed separately](https://sumo.dlr.de/docs/Installing/index.html). SUMO_HOME environment variable must be set, this is done automatically on the install of Sumo on Windows and Ubuntu. SUMO 1.9.0 and 1.9.1 have been tested.
+## **1. PROJECT REQUIREMENTS <a name="setup"></a>**
 
-On Ubuntu the speed of the simulation may be greatly increased by using libsumo. Set the environment variable LIBSUMO_AS_TRACI to any value and give main.py --libsumo True. Note that this can not be used with multi-threading.
+### **1.1. REQUIRED TOOLS / PACKAGES <a name="requirements"></a>**
 
-Python 3.7.4 is required for tensorflow -used by the MA2C and FMA2C implementation.
+To run or visualize an experiment you must install:
+- Python 3.10,
+- **SUMO**, which must be [installed separately](https://sumo.dlr.de/docs/Installing/index.html). SUMO_HOME environment variable must be set, this is done automatically on the install of Sumo on Windows and Ubuntu. **SUMO 1.19.0 has been tested**,
+- required packages from the requirements.txt (`pip install -r requirements.txt`)
 
-agent_config defines parameters for the available agents. An agent is specified by the --agent argument to main.
 
-map_config specifies the SUMO scenario parameters, road network, and demand files.
+### **1.2. HOW TO GET Neptune.ai TOKEN <a name="neptune_token"></a>**
 
-mdp_config supplies constants to state and reward functions (e.g. for normalization)
+* Log in to [Neptune.ai](https://ui.neptune.ai/). In the bottom-left corner, click the arrow (as shown in the screenshot below).
 
-signal_config defines each signal of each SUMO scenario. Valid green phases are determined from the road network TLSLogic, yellow signals are inserted as required. phase_pairs gives the directional index of phase combinations following the order defined in TLSLogic. valid_acts provides a translation table for shared controllers with varying action definitions across multiple signals. For each signal inbound lanes are given by the direction of traffic. Finally, each signal defines which signals are downstream for the purposes of coordination (neighbors, pressure, etc.)
+![press_on_the_arrow](./images/press_on_the_arrow.png)
+* Click `Get your API token`.
 
-An example command to train IDQN on the Melaka region scenario is:
+![get_your_api_token](./images/get_your_api_token.png)
+* Click the button highlighted in the image below.
 
-`python main.py --agent IDQN --map BB5B`
+![copy_the_api_token](./images/copy_the_api_token.png)
+<br></br>
 
-SUMO scenarios are supplied in the environments directory. All scenarios are distributed under their original licenses. Information on the Cologne scenario can be found on (https://sumo.dlr.de/docs/Data/Scenarios/TAPASCologne.html). Information on Ingolstadt scenarios can be found at (https://github.com/silaslobo/InTAS). For more scenarios please see (https://sumo.dlr.de/docs/Data/Scenarios.html)
 
-Below the benchmark performance for baselines (Fixed Time, Greedy, Max Pressure) and learning algorithms (IDQN, IPPO, MPLight, Extended MPLight (MPLight*), FMA2C) are given.
-![Alt text](delays.png?raw=true "Benchmark learning curves")
 
-# Citing RESCO
-This project was used in [Reinforcement Learning Benchmarks for Traffic Signal Control](https://datasets-benchmarks-proceedings.neurips.cc/paper/2021/hash/f0935e4cd5920aa6c7c996a5ee53a70f-Abstract-round1.html). If you use RESCO in your work, please include a citation:
+## **2. HOW TO RUN AN EXPERIMENT <a name="run_experiment"></a>**
+
+Get your Neptune.ai token (**see: [HOW TO GET Neptune.ai TOKEN](#neptune_token)**), open `main.py` file and replace `"your_api_token"` in the `neptune.init_run()` method with your token.
+```python
+run = neptune.init_run(
+            api_token="your_api_token",
+            project="pgora/Malaysia2",
+            name=f"{args.agent}-sumo-v0",
+            description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
+            tags=[
+                "sumo-v0",
+                f"{args.agent}",
+                f"Net: {args.net}",
+                f"Activation: {args.activation}",
+                "stable-baselines3",
+                # "10 episodes - train, 1 episode - validation on new own generated file",
+                "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
+                "no new vehicles after 1 hour",
+                f"Reward: {agent_configs[args.agent]['reward'].__name__}",
+                # "5e5 steps",
+                "7-8 am",
+                # "aggregating data from lanes on the same road",
+            ],
+        )
 ```
-@inproceedings{ault2021reinforcement,
-  title={Reinforcement Learning Benchmarks for Traffic Signal Control},
-  author={James Ault and Guni Sharon},
-  booktitle={Proceedings of the Thirty-fifth Conference on Neural Information Processing Systems (NeurIPS 2021) Datasets and Benchmarks Track},
-  month={December},
-  year={2021}
-}
+Open the console, navigate to the `resco_benchmark` directory (`cd resco_benchmark`) and enter the following command:
+
+`python main.py --map BB5B`<br></br>
+Note that there are also other parameters to set.
+
+<table><tbody>
+<tr>
+  <th> 
+    
+  **COMMAND NAME** </th>
+  <th> 
+    
+  **AVAILABLE VALUES** </th>
+  <th> 
+    
+  **DESCRIPTION** </th>
+<tr>
+  <td>
+  --agent
+  </td>
+  <td>
+
+  * IDQN
+  * IPPO
+  * STOCHASTIC
+  </td>
+  <td>
+  RL algorithm
+  </td>
+<tr>
+  <td>
+    --map
+  </td>
+  <td> 
+  BB5B
+  </td>
+  <td>
+  Available scenario. Currently BB5B is the only available.
+  </td>
+<tr>
+  <td>
+    --eps_val
+  </td>
+  <td>
+  Any integer greater than 1
+  </td>
+  <td>
+    
+  Expected number of validation episodes. By default every 11th episode will be the validation episode. You can change that by overwriting the `VALIDATION_INTERVAL` variable in `main.py`. 
+  </td>
+<tr>
+  <td>
+    --seed
+  </td>
+  <td>
+  Any positive integer
+  </td>
+  <td>
+    Allows to reproduce the results of the experiment. Experiment must be run on the same machine. Otherwise, the results might be different.
+  </td>
+<tr>
+  <td>
+    --net
+  </td>
+  <td>
+    
+  * _**default**_
+  * _**double_conv**_
+  </td>
+  <td>
+    Different PyTorch neural networks.
+  </td>
+<tr>
+  <td>
+    --activation
+  </td>
+  <td>
+    
+  * _**relu**_
+  * _**leaky_relu**_
+  * _**tanh**_
+  * _**swish**_
+  </td>
+  <td>
+    Different activation functions.
+  </td>
+<tr>
+  <td>
+    --gui
+  </td>
+  <td>
+    
+  _boolean_
+  </td>
+  <td>
+    Allows to run simulation with visualization in SUMO. False by default.
+  </td>
+<tr>
+  <td>
+  log_dir
+  </td>
+  <td>
+  Any directory (string)
+  </td>
+  <td>
+  Location where experiment metrics and simulation data shared from SUMO are saved.
+  </td>
+<tr>
+  <td>
+  procs
+  </td>
+  <td>
+  Any positive integer
+  </td>
+  <td>
+  
+  Runs the simulation on the provided number of processes. If `procs` is set to 2, it increases simulation performance.
+  </td>
+<tr>
+  <td>
+    --load
+  </td>
+  <td>
+    
+  _boolean_
+  </td>
+  <td>
+
+  Loads provided models from `models/models_for_visualization` directory. Used for visualization, but also we can continue training from a checkpoint. To resume training, we need to enable the training mode for the model (for example `agents/pfrl_dqn.py` -> comment out line 34 `self.agents[key].agent.training = False`).
+  </td>
+<tbody></table>
+
+
+### **2.1 EXAMPLE: HOW TO RUN AN EXPERIMENT <a name="example_run_experiment"></a>**
+
+To run the experiment, open the console, navigate to the **resco_benchmark** (`cd resco_benchmark`) folder, and enter the following command: <br></br>
+`python main.py --agent IDQN --eps_val 10 --map BB5B --seed 42 --net default --activation leaky_relu`
+<br></br>
+
+
+
+## **3. HOW TO VISUALIZE AN EXPERIMENT <a name="visualization"></a>**
+
+To visualize the model, copy the token from the Neptune.ai (**see: [HOW TO GET Neptune.ai TOKEN](#neptune_token)**), open `main-testagent.py` file and replace `"your_api_token"` in the `neptune.init_run()` method with your token.
+
+```python
+run = neptune.init_run(
+        api_token="your_api_token",
+        project="pgora/Malaysia2",
+        with_id=args.experiment_name,
+        mode="read-only"
+    )
 ```
 
+After setting the token, open console, navigate to `resco_benchmark` (`cd resco_benchmark`), and enter the command:
 
-# EPyMARL
-RESCO has been updated to be compatible with the [EPyMARL](https://datasets-benchmarks-proceedings.neurips.cc/paper/2021/hash/a8baa56554f96369ab93e4f3bb068c22-Abstract-round1.html) benchmark for cooperative RL algorithms. Some modifications within EPyMARL are required currently, available [here](https://github.com/Pi-Star-Lab/epymarl_resco). Clone the modified repository and execute EPyMARL algorithms against the RESCO benchmark using EPyMARL's main.py:
+`python main-testagent.py --experiment_name MAL2-623`
 
-```main.py --config=qmix --env-config=gymma with env_args.time_limit=1 env_args.key=resco_benchmark:cologne3-qmix-v1```
+where `MAL2-623` is the name of the experiment you want to visualize. Training hyperparameters will be passed automatically. Keep in mind that the experiment must have a `models` directory on Neptune.ai. Otherwise, a FileNotFoundError will be returned.
