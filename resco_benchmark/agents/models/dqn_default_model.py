@@ -1,14 +1,13 @@
 import torch.nn as nn
 from pfrl.q_functions import DiscreteActionValueHead
 
+from agents.models.base_model import BaseModel
 
-class DoubleConv(nn.Module):
+
+class DQNDefaultModel(BaseModel):
     def __init__(self, obs_space, act_space, h, w, activation):
-        super(DoubleConv, self).__init__()
-        self.activation = activation
+        super(DQNDefaultModel, self).__init__(activation)
         self.conv1 = nn.Conv2d(obs_space[0], 64, kernel_size=(2, 2))
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=(2, 2))
-        self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(h * w * 64, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, act_space)
@@ -16,7 +15,6 @@ class DoubleConv(nn.Module):
 
     def forward(self, x):
         x = self.activation(self.conv1(x))
-        x = self.activation(self.conv2(x))
         x = self.flatten(x)
         x = self.activation(self.fc1(x))
         x = self.activation(self.fc2(x))

@@ -1,30 +1,49 @@
 import torch.nn as nn
-from agents.models.default import DefaultModel
-from agents.models.double_conv import DoubleConv
+
+from agents.models.dqn_default_model import DQNDefaultModel
+from agents.models.dqn_double_conv_model import DQNDoubleConv
+from agents.models.ppo_default_model import PPODefaultModel
+from agents.models.ppo_double_conv_model import PPODoubleConv
 from agents.models.calculate_output_size import conv2d_size_out
 
 
-def get_net(net, activation, obs_space, act_space, h, w, **kwargs):
+def get_net(agent, net, activation, obs_space, act_space, h, w, **kwargs):
     activations = {
         "relu": nn.ReLU(),
         "tanh": nn.Tanh(),
         "leaky_relu": nn.LeakyReLU(negative_slope=kwargs.get("negative_slope")),
         "swish": nn.SiLU()
     }
-    h2 = conv2d_size_out(h)
-    w2 = conv2d_size_out(w)
+
     other_nets = {
-        "default": DefaultModel(obs_space=obs_space,
-                            act_space=act_space,
-                            h=h,
-                            w=w,
-                            activation=activations[activation]),
-        "double_conv": DoubleConv(
-            obs_space=obs_space,
-            act_space=act_space,
-            h=h2,
-            w=w2,
-            activation=activations[activation]
-        )
+        "IDQN": {
+            "default": lambda: DQNDefaultModel(
+                obs_space=obs_space, 
+                act_space=act_space, 
+                h=h, 
+                w=w, 
+                activation=activations[activation]),
+            "double_conv": lambda: DQNDoubleConv(
+                obs_space=obs_space, 
+                act_space=act_space, 
+                h=conv2d_size_out(h), 
+                w=conv2d_size_out(w), 
+                activation=activations[activation])
+        },
+        "IPPO": {
+            "default": lambda: PPODefaultModel(
+                obs_space=obs_space, 
+                act_space=act_space, 
+                h=h,
+                w=w, 
+                activation=activations[activation]),
+            "double_conv": lambda: PPODoubleConv(
+                obs_space=obs_space,
+                act_space=act_space,
+                h=conv2d_size_out(h),
+                w=conv2d_size_out(w),
+                activation=activations[activation]
+            )
+        }
     }
-    return other_nets[net]
+    return other_nets[agent][net]

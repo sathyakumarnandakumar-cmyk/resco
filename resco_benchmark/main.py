@@ -194,7 +194,7 @@ def run_trial(args, trial):
             env.obs_shape[key],
             2 if key in env.phases else None,
         ]
-    if args.agent == "IDQN":
+    if args.agent == "IDQN" or args.agent == "IPPO":
         agent = alg(agt_config, obs_act, args.map, trial, 
                     net=args.net,
                     activation=args.activation,

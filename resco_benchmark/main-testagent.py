@@ -137,7 +137,7 @@ def run_trial(args, trial, run, **kwargs):
         + net
         + "-activ"
         + activation
-        + (f"-neg_slope{args.negative_slope}" if args.activation == "leaky_relu" else "")
+        + (f"-neg_slope{negative_slope}" if activation == "leaky_relu" else "")
         + "-seed"
         + str(seed)
         + "-tr"
@@ -183,7 +183,7 @@ def run_trial(args, trial, run, **kwargs):
             env.obs_shape[key],
             2 if key in env.phases else None,
         ]
-    if agent == "IDQN":
+    if agent == "IDQN" or args.agent == "IPPO":
         agent = alg(agt_config, obs_act, map, trial, 
                     net=net, 
                     activation=activation,
