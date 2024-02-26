@@ -1,8 +1,7 @@
 from typing import Any, Sequence
+
 import numpy as np
-
 import torch
-
 import pfrl
 from pfrl import explorers, replay_buffers
 from pfrl.explorer import Explorer
@@ -25,13 +24,14 @@ class IDQN(IndependentAgent):
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
 
-            model = get_net(net=kwargs.get("net"),
+            model = get_net(agent=self.__class__.__name__,
+                            net=kwargs.get("net"),
                             activation=kwargs.get("activation"),
                             obs_space=obs_space,
                             act_space=act_space,
                             h=h,
                             w=w,
-                            negative_slope=kwargs.get("negative_slope"))
+                            negative_slope=kwargs.get("negative_slope"))()
             self.agents[key] = DQNAgent(config, act_space, model)
 
             if self.config['load']:
