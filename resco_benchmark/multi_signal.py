@@ -558,7 +558,7 @@ class MultiSignal(gym.Env):
 
     def calculate_delta_of_delays(self):
         delta_of_delays = []
-        delta_time = self.step_length - self.yellow_length
+        delta_time = self.step_length - self.yellow_length - self.red_length
         for veh_id in self.vehicles_on_simulation:
             if (
                     self.vehicles_on_simulation[veh_id]["time"]["time_of_appearance"]
