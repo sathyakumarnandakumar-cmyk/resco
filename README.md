@@ -5,9 +5,8 @@
 2. **[HOW TO RUN AN EXPERIMENT](#run_experiment)**
     - 2.1. **[EXAMPLE: HOW TO RUN AN EXPERIMENT](#example_run_experiment)**
 3. **[HOW TO VISUALIZE AN EXPERIMENT](#visualization)**
+4. **[AGENT](#describe)**
 <br></br>
-
-
 
 ## **1. PROJECT REQUIREMENTS <a name="setup"></a>**
 
@@ -218,3 +217,23 @@ After setting the token, open console, navigate to `resco_benchmark` (`cd resco_
 `python main-testagent.py --experiment_name MAL2-623`
 
 where `MAL2-623` is the name of the experiment you want to visualize. Training hyperparameters will be passed automatically. Keep in mind that the experiment must have a `models` directory on Neptune.ai. Otherwise, a FileNotFoundError will be returned.
+
+## **4. AGENT <a name="describe"></a>**
+
+- **State**: this is a dictionary where the keys are the names of intersections and their values are numpy arrays that 
+  contain the current phase of the intersection with traffic lights, normalized approach, normalized waiting time, 
+  normalized the total number of halting vehicles for the last time step on the incoming lanes (a speed of less than 
+  0.1 m/s is considered a halt) and normalized vehicle speed of all vehicles on incoming lanes.
+- **Action**: a single action should be understood as changing the current green phase on intersection for next (1)
+  or not (0). For *INFMain_Junc* we have 3 possible green phases and for *PBB_Junc* and *SIRIM_Junc* there are
+  4 possible green phases. So the action is a vector containing information about 3 choosing green phases for
+  intersections, eg. [0, 1, 0] means that we won't change the current phase on *PBB_Junc* and *SIRIM_Junc'* and
+  change for next green phase on *INFMain_Junc*. It should be remembered that if the current green phase at the
+  intersection is 1, the next green phase is 2 (not 3 or not 0). It is assumed that you cannot randomly choose phases.
+  Note that changing phases then a mandatory yellow and red phase is enforced for a predefined time duration.
+- **Reward**: several types available:
+  - *wait*: the total waiting time of all vehicles in the incoming lanes between actions, where the waiting time of a 
+    car is the count of seconds spent with speed below 0.1 m/s since the spawn in an incoming lane before junctions
+    with traffic light;
+  - *wait_norm*: normalized waiting time on incoming lanes;
+  - *pressure*: queue length, i.e. the number of vehicles on the incoming lanes.
