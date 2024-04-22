@@ -224,6 +224,7 @@ where `MAL2-623` is the name of the experiment you want to visualize. Training h
   contain the current phase of the intersection with traffic lights, normalized approach, normalized waiting time, 
   normalized the total number of halting vehicles for the last time step on the incoming lanes (a speed of less than 
   0.1 m/s is considered a halt) and normalized vehicle speed of all vehicles on incoming lanes.
+  You can find more information in [resco_benchmark/states.py ](https://gitlab.com/trafficsimulationframework/rl/resco-for-malaysia/-/blob/main/resco_benchmark/states.py)
 - **Action**: a single action should be understood as changing the current green phase on intersection for next (1)
   or not (0). For *INFMain_Junc* we have 3 possible green phases and for *PBB_Junc* and *SIRIM_Junc* there are
   4 possible green phases. So the action is a vector containing information about 3 choosing green phases for
@@ -237,3 +238,4 @@ where `MAL2-623` is the name of the experiment you want to visualize. Training h
     with traffic light;
   - *wait_norm*: normalized waiting time on incoming lanes;
   - *pressure*: queue length, i.e. the number of vehicles on the incoming lanes.
+  You can find more information in [resco_benchmark/rewards.py](https://gitlab.com/trafficsimulationframework/rl/resco-for-malaysia/-/blob/main/resco_benchmark/rewards.py)
