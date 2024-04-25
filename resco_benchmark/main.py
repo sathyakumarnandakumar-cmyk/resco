@@ -174,7 +174,7 @@ def run_trial(args, trial):
         seed=args.seed,
     )
 
-    agt_config["episodes"] = int(args.eps_val * 0.8)  # schedulers decay over 80% of steps
+    agt_config["episodes"] = int(args.eps_val * VALIDATION_INTERVAL * 0.8)  # schedulers decay over 80% of steps
     agt_config["steps"] = agt_config["episodes"] * num_steps_eps
     agt_config["log_dir"] = os.path.join(args.log_dir, env.connection_name)
     agt_config["models_dir"] = os.path.join(args.models_dir, env.connection_name)

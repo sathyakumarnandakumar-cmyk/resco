@@ -18,5 +18,5 @@ class DQNDefaultModel(BaseModel):
         x = self.flatten(x)
         x = self.activation(self.fc1(x))
         x = self.activation(self.fc2(x))
-        x = self.activation(self.fc3(x))
+        x = self.fc3(x)
         return self.discrete_action_value_head(x)
