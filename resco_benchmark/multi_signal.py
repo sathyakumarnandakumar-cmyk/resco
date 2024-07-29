@@ -7,12 +7,15 @@ import gym
 import numpy as np
 import sumolib
 import traci
+import traci.constants as tc
 import yaml
+import logging
 
 from traffic_signal import Signal
 from utils.BB5B_sumo_methods import get_the_routes_info
 from utils.mytl.generators.routes import RoutesGenerator
 
+logger = logging.getLogger('resco_benchmark')
 
 class MultiSignal(gym.Env):
     def __init__(self, run_name, map_name, net, state_fn, reward_fn, route=None, gui=False, start_time=0, end_time=3600,
@@ -154,6 +157,9 @@ class MultiSignal(gym.Env):
             if self.map_name == "BB5B" and self.sim_step == 25201:
                 traci.trafficlight.setPhase("INFMain_Junc", 5)
             self.sumo.simulationStep()
+            self.update_sim_step() #TODO: better name
+            self.reset_traci_subscriptions()
+            
             if self.map_name == "BB5B" and self.run is not None:
                 for ts in self.signal_ids:
                     self.signals[ts].update()
@@ -204,6 +210,9 @@ class MultiSignal(gym.Env):
         else:
             traci.start(self.sumo_cmd, label=self.connection_name)
             self.sumo = traci.getConnection(self.connection_name)
+
+        self.setup_traci_subscriptions()
+        self.update_sim_step()
 
         for _ in range(self.warmup):
             self.step_sim()
@@ -383,12 +392,15 @@ class MultiSignal(gym.Env):
         traci.close()
         self.save_metrics()
 
-    @property
-    def sim_step(self):
-        """
-        Return current simulation second on SUMO
-        """
-        return traci.simulation.getTime()
+    def update_sim_step(self):
+        self.sim_step = traci.simulation.getTime()
+
+    # @property
+    # def sim_step(self):
+    #     """
+    #     Return current simulation second on SUMO
+    #     """
+    #     return traci.simulation.getTime()
 
     # methods for BB5B scenario
     def update_waiting_time_all_vehicles_in_simulation(self):
@@ -397,22 +409,25 @@ class MultiSignal(gym.Env):
         the waiting times of all vehicles present in the environment.
         """
 
-        vehicle_list = [*traci.vehicle.getIDList()]
+        scResults = self.get_traci_subscription(self._all_vehicles_subscription)
 
-        for veh_id in vehicle_list:
-            veh_lane = traci.vehicle.getLaneID(veh_id)
-            accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
+        if scResults is None:
+            logger.warning("update_waiting_time_all_vehicles_in_simulation got no results")
+        
+        for veh_id, d in scResults.items():
+            veh_lane = d[tc.VAR_LANE_ID]
+            accumulated_waiting_time = d[tc.VAR_ACCUMULATED_WAITING_TIME]
             if veh_id not in self.vehicles_on_simulation:
-                route_id = traci.vehicle.getRouteID(veh_id)
-                max_speed = traci.vehicle.getMaxSpeed(veh_id)
+                route_id = d[tc.VAR_ROUTE_ID]
+                max_speed = d[tc.VAR_MAXSPEED]
                 self.vehicles_on_simulation[veh_id] = {
                     "lanes": {veh_lane: accumulated_waiting_time},
                     "time": {"time_of_appearance": self.sim_step},
                     "routeID": route_id,
-                    "type": traci.vehicle.getTypeID(veh_id),
+                    "type": d[tc.VAR_TYPE],
                     "max_speed": max_speed,
                     "ideal_travel_time": self.routes_info[route_id]["length"] / max_speed,
-                    "total_distance": traci.vehicle.getDistance(veh_id),
+                    "total_distance": d[tc.VAR_DISTANCE],
                     "last_calculate_delta_of_delays": False,
                 }
             else:
@@ -425,6 +440,28 @@ class MultiSignal(gym.Env):
                         if lane != veh_lane
                     ]
                 )
+
+    def setup_traci_subscriptions(self):
+        junctionID = traci.junction.getIDList()[0]
+        # subscribe around that junction with a sufficiently large
+        # radius to retrieve the speeds of all vehicles in every step
+        traci.junction.subscribeContext(
+            junctionID, tc.CMD_GET_VEHICLE_VARIABLE, 1000000, #TODO: how big should this number be?
+            [tc.VAR_SPEED, tc.VAR_MAXSPEED, tc.VAR_ROUTE_ID, tc.VAR_LANE_ID, tc.VAR_TYPE, tc.VAR_ACCUMULATED_WAITING_TIME, tc.VAR_DISTANCE, tc.VAR_WAITING_TIME]
+        )
+        self._all_vehicles_subscription = junctionID
+        self._traci_subscriptions = {junctionID: None}
+
+    def reset_traci_subscriptions(self):
+        for subscription in self._traci_subscriptions:
+            self._traci_subscriptions[subscription] = None
+
+    def get_traci_subscription(self, subscription_id):
+        res = self._traci_subscriptions[subscription_id]
+        if res is None:
+            res = traci.junction.getContextSubscriptionResults(subscription_id)
+            self._traci_subscriptions[subscription_id] = res
+        return res
 
     def calculate_the_number_of_vehicles_that_passed_through_the_intersections_in_last_steps(self):
         veh_passed_list = []
@@ -441,7 +478,8 @@ class MultiSignal(gym.Env):
         This method is called in every sim step for BB5B scenario and checks
          if the vehicle has not disappeared from the road map.
         """
-        vehicle_list = [*traci.vehicle.getIDList()]
+        scResults = self.get_traci_subscription(self._all_vehicles_subscription)
+        vehicle_list = scResults.keys()
 
         for veh_id in self.vehicles_on_simulation.keys():
             if (
@@ -473,14 +511,17 @@ class MultiSignal(gym.Env):
         return sum(wait_time_per_lane)
 
     def update_waiting_time_vehicles_on_incoming_lanes(self):
-        for signal in self.signal_ids:
+        scResults = self.get_traci_subscription(self._all_vehicles_subscription)
+
+        for signal in self.signal_ids: 
             for in_lane in self.signals[signal].lanes:
                 # get the ids of the vehicles for the last time step on the given lane
-                veh_list = list(traci.lane.getLastStepVehicleIDs(in_lane))
+                veh_list = list(traci.lane.getLastStepVehicleIDs(in_lane))#TODO: can reverse order of loops to get rid of this traci call
                 for veh_id in veh_list:
-                    accumulated_waiting_time = traci.vehicle.getAccumulatedWaitingTime(veh_id)
+                    vehicle_data = scResults[veh_id]
+                    accumulated_waiting_time = vehicle_data[tc.VAR_ACCUMULATED_WAITING_TIME]
                     if veh_id not in self.vehicles_on_incoming_lanes:
-                        self.vehicles_on_incoming_lanes[veh_id] = {in_lane: traci.vehicle.getWaitingTime(veh_id)}
+                        self.vehicles_on_incoming_lanes[veh_id] = {in_lane: vehicle_data[tc.VAR_WAITING_TIME]}
                     else:
                         self.vehicles_on_incoming_lanes[veh_id][in_lane] = accumulated_waiting_time - sum([self.vehicles_on_simulation[veh_id]["lanes"][lane] for lane in self.vehicles_on_simulation[veh_id]["lanes"].keys() if lane != in_lane])
 
@@ -503,12 +544,15 @@ class MultiSignal(gym.Env):
                             }
 
     def get_total_queued_in_simulation(self):
+        scResults = self.get_traci_subscription(self._all_vehicles_subscription)
+
         queue_list = []
         for id in self.lanes_and_junctions_ids:
             car_list = traci.lane.getLastStepVehicleIDs(id)
             for car_id in car_list:
                 # new vehicles that appear in the simulation and have zero speed should not be considered in the queue
-                if traci.vehicle.getSpeed(car_id) <= 0.1 and traci.vehicle.getWaitingTime(car_id) != 0:
+                vehicle_data = scResults[car_id]
+                if vehicle_data[tc.VAR_SPEED] <= 0.1 and vehicle_data[tc.VAR_WAITING_TIME] != 0:
                     queue_list.append(car_id)
         # return sum([traci.lane.getLastStepHaltingNumber(lane_id) for lane_id in self.lanes_and_junctions_ids] if
         # traci.lane)
@@ -518,6 +562,8 @@ class MultiSignal(gym.Env):
         return sum([int(traci.lane.getWaitingTime(lane_id)) for lane_id in self.lanes_and_junctions_ids])
 
     def calculate_current_delays_of_all_vehicles_in_simulation(self):
+        scResults = self.get_traci_subscription(self._all_vehicles_subscription)
+
         delta_of_delays = []
         for veh_id in self.vehicles_on_simulation:
             if (
@@ -538,9 +584,7 @@ class MultiSignal(gym.Env):
                                         ]
                                 )
                                 / (
-                                    traci.vehicle.getDistance(veh_id)
-                                    if traci.vehicle.getDistance(veh_id) != 0
-                                    else 0.0001
+                                    max(scResults[veh_id][tc.VAR_DISTANCE], 0.0001)
                                 )
                         )
                         if "time_of_disappearance"
@@ -557,6 +601,9 @@ class MultiSignal(gym.Env):
         return delta_of_delays
 
     def calculate_delta_of_delays(self):
+        scResults = self.get_traci_subscription(self._all_vehicles_subscription)
+
+
         delta_of_delays = []
         delta_time = self.step_length - self.yellow_length - self.red_length
         for veh_id in self.vehicles_on_simulation:
@@ -593,9 +640,7 @@ class MultiSignal(gym.Env):
                                                 ]
                                         )
                                         / (
-                                            traci.vehicle.getDistance(veh_id)
-                                            if traci.vehicle.getDistance(veh_id) != 0
-                                            else 0.0001
+                                            max(scResults[veh_id][tc.VAR_DISTANCE], 0.0001)
                                         )
                                 )
                                 if "time_of_disappearance"
@@ -615,7 +660,7 @@ class MultiSignal(gym.Env):
                 ):
                     self.vehicles_on_simulation[veh_id][
                         "total_distance"
-                    ] = traci.vehicle.getDistance(veh_id)
+                    ] = scResults[veh_id][tc.VAR_DISTANCE]
                 else:
                     self.vehicles_on_simulation[veh_id][
                         "last_calculate_delta_of_delays"
