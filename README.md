@@ -239,3 +239,14 @@ where `MAL2-623` is the name of the experiment you want to visualize. Training h
   - *wait_norm*: normalized waiting time on incoming lanes;
   - *pressure*: queue length, i.e. the number of vehicles on the incoming lanes.
   You can find more information in [resco_benchmark/rewards.py](https://gitlab.com/trafficsimulationframework/rl/resco-for-malaysia/-/blob/main/resco_benchmark/rewards.py)
+
+## **5. Metrics <a name="describe"></a>**
+- **average_time_of_journey**: average time of journey for all vehicles that have completed drive
+- **calculate_average_delta_of_delays_after_action**: mean(delta_of_delays_all_vehicles) = V_max * (t / x(t) - (t + Δ) / x(t + Δ)), where Δ = 5 s
+- **count_of_vehicles_completing_journey**: number of vehicles that have completed their journey
+- **total_average_delays_of_all_vehicles_from_all_routes**: average of all delays of all vehicles that completed their drive
+- **total_average_delays_real_times_by_ideal_times**: the sum of all real times divided by the sum of ideal times
+- **total_sum_delays_of_all_vehicles_from_all_routes**: the total sum of delays of all vehicles that have completed their drive
+- **total_time_of_journey**: the total sum of travel times for all vehicles
+- **total_waiting_time_all_vehicles_in_simulation_in_episode**: total waiting time of all vehicles in a simulation (all, not only those that have completed their drive)
+- **total_waiting_time_on_the_incoming_lanes_in_episode**: total waiting time of all vehicles on the incoming lanes (all, not only those that have completed their drive)
