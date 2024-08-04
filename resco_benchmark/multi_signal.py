@@ -15,9 +15,10 @@ from utils.mytl.generators.routes import RoutesGenerator
 
 
 class MultiSignal(gym.Env):
-    def __init__(self, run_name, map_name, net, state_fn, reward_fn, route=None, gui=False, start_time=0, end_time=3600,
-                 step_length=10, yellow_length=3, step_ratio=1, max_distance=200, lights=(), log_dir='/', libsumo=False,
-                 warmup=0, gymma=False, mode="training", seed=42):
+    def __init__(self, run_name, map_name, net, state_fn, reward_fn,  validation_day_directory_name: str, route=None,
+                 gui=False, start_time=0, end_time=3600, step_length=10, yellow_length=3, step_ratio=1, max_distance=200,
+                 lights=(), log_dir='/', libsumo=False, warmup=0, gymma=False, mode="training", seed=42,
+                 validation_period_file_name: str = "BB5B_7-8am.rou.xml"):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
         print(map_name, net, state_fn.__name__, reward_fn.__name__)
@@ -42,6 +43,8 @@ class MultiSignal(gym.Env):
         self.run = None
         self.mode = mode
         self.seed = seed
+        self.validation_day_directory_name = validation_day_directory_name
+        self.validation_period_file_name = validation_period_file_name
 
         # Run some steps in the simulation with default light configurations to detect phases
         if self.route is not None:
@@ -186,7 +189,7 @@ class MultiSignal(gym.Env):
                     # generate train file with routes
                     self.route = self.generate_training_file_with_routes()
                 else: # if mode = validation
-                    self.route = Path("environments", "BB5B", "BB5B_7-8am.rou.xml")
+                    self.route = Path("environments", "BB5B", self.validation_day_directory_name, self.validation_period_file_name)
                 self.sumo_cmd += ['-c', self.net, '-r', str(self.route)]
             else:
                 self.sumo_cmd += ['-c', self.net]
