@@ -73,6 +73,7 @@ def main():
     ap.add_argument("--load", type=bool, default=False)
     ap.add_argument("--net", type=str, default="default")
     ap.add_argument("--activation", type=str, default="relu")
+    ap.add_argument("--validation_day", type=str, default="26NovFull")
     # Allows you to manipulate the slope of the leaky_relu chart
     ap.add_argument("--negative_slope", type=float, default=0.01)
     ap.add_argument("--libsumo", type=bool, default=False)
@@ -159,6 +160,7 @@ def run_trial(args, trial):
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
         agt_config["reward"],
+        validation_day_directory_name=args.validation_day,
         route=route,
         step_length=map_config["step_length"],
         yellow_length=map_config["yellow_length"],
@@ -209,6 +211,8 @@ def run_trial(args, trial):
             "map": args.map,
             "net": args.net,
             "activation": args.activation,
+            "validation_day": args.validation_day,
+            "validation_period": env.validation_period_file_name.removesuffix(".rou.xml"),
             "seed": args.seed,
         }
         if args.activation == "leaky_relu":
