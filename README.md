@@ -258,4 +258,4 @@ their journey divided by the sum of ideal travel times all vehicles that have co
 (all, not only those that have completed their journey)
 - **waiting_time_all_vehicles_for_the_last_time_step_in_simulation**: total waiting time of all vehicles on all lanes 
 (all, not only those that have completed their journey)
-- **number_of_all_halting_vehicles_for_the_last_time_step_in_simulation**: the total number of waiting vehicles during the whole simulation
+- **number_of_all_halting_vehicles_for_the_last_time_step_in_simulation**: the total number of waiting vehicles (speed below 0.1m/s) in the whole simulation
