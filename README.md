@@ -243,7 +243,7 @@ where `MAL2-623` is the name of the experiment you want to visualize. Training h
 ## **5. Metrics <a name="describe"></a>**
 - **average_time_of_journey**: average time of journey for all vehicles that have completed drive
 - **calculate_average_delta_of_delays_after_action**: mean(delta_of_delays_all_vehicles_on_simulation) = 
- mean(V_max_i * (t / x(t) - (t + Δ) / x(t + Δ))), where Δ = 5 s
+ mean(V_max_i * (t / x(t) - (t + Δ) / x(t + Δ))), where Δ = 5 s (this is only for the vehicles that were in the simulation)
 - **count_of_vehicles_completing_journey**: number of vehicles that have completed their journey
 - **number_of_all_halting_vehicles_for_the_last_time_step_in_simulatio**: number of all vehicles that have spent with a
   speed below 0.1m/s since the last time it was faster than 0.1m/s
