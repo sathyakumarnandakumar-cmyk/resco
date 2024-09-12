@@ -15,6 +15,12 @@ from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
+
 START_TIME = datetime.now().strftime("%d_%m_%H_%M")
 VALIDATION_INTERVAL = 11
 
@@ -219,8 +225,6 @@ def run_trial(args, trial):
             PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
         
         run = neptune.init_run(
-            api_token=None,
-            project="pgora/Malaysia2",
             name=f"{args.agent}-sumo-v0",
             description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
             tags=[

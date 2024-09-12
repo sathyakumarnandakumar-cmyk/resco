@@ -13,6 +13,11 @@ from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
 
 def main():
     ap = argparse.ArgumentParser()
@@ -48,8 +53,6 @@ def main():
         )
     
     run = neptune.init_run(
-        api_token=None,
-        project="pgora/Malaysia2",
         with_id=args.experiment_name,
         mode="read-only"
     )

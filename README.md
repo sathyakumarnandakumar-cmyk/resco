@@ -31,7 +31,8 @@ To run or visualize an experiment you must install:
 ![copy_the_api_token](./images/copy_the_api_token.png)
 <br></br>
 
-
+* Finally, create the .env file based on the .env_sample file and define
+`NEPTUNE_API_TOKEN` and `NEPTUNE_PROJECT` environment variables.
 
 ## **2. HOW TO RUN AN EXPERIMENT <a name="run_experiment"></a>**
 
