@@ -221,7 +221,6 @@ def run_trial(args, trial):
             PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
         
         run = neptune.init_run(
-            api_token=None,
             name=f"{args.agent}-sumo-v0",
             description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
             tags=[

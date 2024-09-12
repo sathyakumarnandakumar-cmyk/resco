@@ -53,7 +53,6 @@ def main():
         )
     
     run = neptune.init_run(
-        api_token=None,
         with_id=args.experiment_name,
         mode="read-only"
     )
