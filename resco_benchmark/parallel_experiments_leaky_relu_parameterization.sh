@@ -36,12 +36,12 @@ for agent in "${agents[@]}"; do
                         negative_slope=$(echo "$negative_slope" | sed 's/\.//g')
                         session_name="${agent}-${seed}-${net}-${activation}-${negative_slope}"
                         tmux new-session -d -s "${session_name}"
-                        tmux send-keys -t "${session_name}".0 "python3 main.py --agent ${agent} --net ${net} --activation ${activation} --negative_slope ${negative_slope} --map BB5B --seed ${seed} --eps_val ${eps_val}"
+                        tmux send-keys -t "${session_name}".0 "python3 main.py --agent ${agent} --net ${net} --activation ${activation} --negative_slope ${negative_slope} --map BB5B --seed ${seed} --eps_val ${eps_val}" ENTER
                     done
                 else
                     session_name="${agent}-${seed}-${net}-${activation}"
                     tmux new-session -d -s "${session_name}"
-                    tmux send-keys -t "${session_name}".0 "python3 main.py --agent ${agent} --net ${net} --activation ${activation} --map BB5B --seed ${seed} --eps_val ${eps_val}"
+                    tmux send-keys -t "${session_name}".0 "python3 main.py --agent ${agent} --net ${net} --activation ${activation} --map BB5B --seed ${seed} --eps_val ${eps_val}" ENTER
                 fi
             done
         done
