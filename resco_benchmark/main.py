@@ -22,7 +22,6 @@ except ModuleNotFoundError:
     pass
 
 START_TIME = datetime.now().strftime("%d_%m_%H_%M")
-VALIDATION_INTERVAL = 11
 
 
 def main():
@@ -47,6 +46,7 @@ def main():
     )
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--eps_val", type=int, default=10)
+    ap.add_argument("--validation_interval", type=int, default=11)
     ap.add_argument("--procs", type=int, default=1)
     ap.add_argument(
         "--map",
@@ -182,7 +182,7 @@ def run_trial(args, trial):
         seed=args.seed,
     )
 
-    agt_config["episodes"] = int(args.eps_val * VALIDATION_INTERVAL * 0.8)  # schedulers decay over 80% of steps
+    agt_config["episodes"] = int(args.eps_val * args.validation_interval * 0.8)  # schedulers decay over 80% of steps
     agt_config["steps"] = agt_config["episodes"] * num_steps_eps
     agt_config["log_dir"] = os.path.join(args.log_dir, env.connection_name)
     agt_config["models_dir"] = os.path.join(args.models_dir, env.connection_name)
@@ -212,14 +212,17 @@ def run_trial(args, trial):
     run = None
     if args.map == "BB5B":
         PARAMS_ALGORITHM = {
+            "action_frequency": env.step_length,
             "algorithm": args.agent,
-            "number_episodes": args.eps_val * VALIDATION_INTERVAL,
+            "number_of_training_episodes": args.eps_val*args.validation_interval - args.eps_val,
+            "number_of_validation_episodes": args.eps_val,
             "map": args.map,
             "net": args.net,
             "activation": args.activation,
             "validation_day": args.validation_day,
             "validation_period": env.validation_period_file_name.removesuffix(".rou.xml"),
             "seed": args.seed,
+            "phases": {connection_name: len(phases) for connection_name, phases in env.phases.items()}
         }
         if args.activation == "leaky_relu":
             PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
@@ -249,9 +252,9 @@ def run_trial(args, trial):
     # based on which we'll choose the best model(s).
     dict_with_agents = {}
 
-    for i in range(1, args.eps_val*VALIDATION_INTERVAL + 1):
+    for i in range(1, args.eps_val*args.validation_interval + 1):
         if args.map == "BB5B":
-            if i % VALIDATION_INTERVAL != 0:
+            if i % args.validation_interval != 0:
                 mode = "training"
                 agent.set_mode("training")
             else:
@@ -271,7 +274,7 @@ def run_trial(args, trial):
             if args.agent == "STOCHASTIC":
                 for _, model in agent.agents.items():
                     model.random_state = random.getstate()
-            validation_eps_number = int(i/VALIDATION_INTERVAL - 1)
+            validation_eps_number = int(i/args.validation_interval - 1)
             dict_with_agents[f"eps_{validation_eps_number}"] = {
                 "total_average_delays_of_all_vehicles_from_all_routes": info[
                     "total_average_delays_of_all_vehicles_from_all_routes"
