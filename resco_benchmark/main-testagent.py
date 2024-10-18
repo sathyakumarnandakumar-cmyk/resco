@@ -26,6 +26,7 @@ def main():
         type=str,
         required=True
     )
+    ap.add_argument("--validation_day", type=str, default="26NovFull")
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--procs", type=int, default=1)
     ap.add_argument("--pwd", type=str, default=os.path.dirname(__file__))
@@ -149,6 +150,7 @@ def run_trial(args, trial, run, **kwargs):
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
         agt_config["reward"],
+        validation_day_directory_name=args.validation_day,
         route=route,
         step_length=map_config["step_length"],
         yellow_length=map_config["yellow_length"],
