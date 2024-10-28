@@ -56,7 +56,7 @@ def main():
         with_id=args.experiment_name,
         mode="read-only"
     )
-    agent, map, episodes, net, activation, seed, negative_slope = fetch_experiment_data(run)
+    agent, map, episodes, net, activation, seed, negative_slope, validation_day = fetch_experiment_data(run)
 
     np.random.seed(seed)
     random.seed(seed)
@@ -75,7 +75,8 @@ def main():
                   net=net, 
                   activation=activation, 
                   seed=seed, 
-                  negative_slope=negative_slope)
+                  negative_slope=negative_slope, 
+                  validation_day=validation_day)
     else:
         pool = mp.Pool(processes=args.procs)
         for trial in range(1, args.trials + 1):
@@ -86,7 +87,8 @@ def main():
                                    "net": net, 
                                    "activation": activation, 
                                    "seed": seed, 
-                                   "negative_slope": negative_slope})
+                                   "negative_slope": negative_slope,
+                                   "validation_day": validation_day})
         pool.close()
         pool.join()
 
@@ -99,6 +101,7 @@ def run_trial(args, trial, run, **kwargs):
     activation = kwargs.get("activation")
     seed = kwargs.get("seed")
     negative_slope = kwargs.get("negative_slope")
+    validation_day = kwargs.get("validation_day")
     
     mdp_config = mdp_configs.get(agent)
     if mdp_config is not None:
@@ -149,6 +152,7 @@ def run_trial(args, trial, run, **kwargs):
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
         agt_config["reward"],
+        validation_day_directory_name=validation_day,
         route=route,
         step_length=map_config["step_length"],
         yellow_length=map_config["yellow_length"],
@@ -227,7 +231,8 @@ def fetch_experiment_data(run: neptune.Run):
     activation = params.get("activation")
     seed = params.get("seed")
     negative_slope = params.get("negative_slope", 0.01)
-    return agent, map, episodes, net, activation, seed, negative_slope
+    validation_day = params.get("validation_day", "26NovFull")
+    return agent, map, episodes, net, activation, seed, negative_slope, validation_day
 
 
 def remove_files(path: str):
