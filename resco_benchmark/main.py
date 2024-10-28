@@ -232,6 +232,7 @@ def run_trial(args, trial):
             description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
             tags=[
                 "sumo-v0",
+                os.environ.get('NEPTUNE_OWNER_RUNNING_EXPERIMENT'),
                 f"{args.agent}",
                 f"Net: {args.net}",
                 f"Activation: {args.activation}",
