@@ -86,8 +86,8 @@ def main():
     ap.add_argument("--reward-type", type=str, default="queue_maxwait", choices=[
         "wait",
         "wait_norm",
-        "pressure"
-        "queue_maxwait"
+        "pressure",
+        "queue_maxwait",
         "queue_maxwait_neighborhood"
     ])
     ap.add_argument(
