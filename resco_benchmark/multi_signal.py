@@ -11,27 +11,30 @@ import traci.constants as tc
 import yaml
 import logging
 
+import rewards
 from traffic_signal import Signal
 from utils.BB5B_sumo_methods import get_the_routes_info
 from utils.mytl.generators.routes import RoutesGenerator
 
 logger = logging.getLogger('resco_benchmark')
 
+
 class MultiSignal(gym.Env):
-    def __init__(self, run_name, map_name, net, state_fn, reward_fn,  validation_day_directory_name: str, route=None,
+    def __init__(self, run_name, map_name, net, state_fn, reward_type,  validation_day_directory_name: str, route=None,
                  gui=False, start_time=0, end_time=3600, step_length=10, yellow_length=3, step_ratio=1, max_distance=200,
                  lights=(), log_dir='/', libsumo=False, warmup=0, gymma=False, mode="training", seed=42,
                  validation_period_file_name: str = "BB5B_7-8am.rou.xml"):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
-        print(map_name, net, state_fn.__name__, reward_fn.__name__)
+
+        self.reward_fn = getattr(rewards, reward_type)
+        print(map_name, net, state_fn.__name__, reward_type)
         self.run_name = run_name
         self.log_dir = log_dir
         self.net = net
         self.route = route
         self.gui = gui
         self.state_fn = state_fn
-        self.reward_fn = reward_fn
         self.max_distance = max_distance
         self.warmup = warmup
 
@@ -41,7 +44,7 @@ class MultiSignal(gym.Env):
         self.yellow_length = yellow_length
         self.red_length = 2
         self.step_ratio = step_ratio
-        self.connection_name = run_name + '-' + map_name + '---' + state_fn.__name__ + '-' + reward_fn.__name__
+        self.connection_name = run_name + '-' + map_name + '---' + state_fn.__name__ + '-' + reward_type
         self.map_name = map_name
         self.run = None
         self.mode = mode
@@ -107,7 +110,7 @@ class MultiSignal(gym.Env):
 
         if not self.libsumo: traci.switch(self.connection_name)
         traci.close()
-        self.connection_name = run_name + '-' + map_name + '-' + str(len(lights)) + '-' + state_fn.__name__ + '-' + reward_fn.__name__
+        self.connection_name = run_name + '-' + map_name + '-' + str(len(lights)) + '-' + state_fn.__name__ + '-' + reward_type
         if not os.path.exists(log_dir+self.connection_name):
             os.makedirs(log_dir+self.connection_name)
         self.sumo_cmd = None

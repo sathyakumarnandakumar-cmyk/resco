@@ -56,7 +56,7 @@ def main():
         with_id=args.experiment_name,
         mode="read-only"
     )
-    agent, map, episodes, net, activation, seed, negative_slope, validation_day = fetch_experiment_data(run)
+    agent, map, episodes, net, activation, seed, negative_slope, validation_day, reward_type = fetch_experiment_data(run)
 
     np.random.seed(seed)
     random.seed(seed)
@@ -76,7 +76,8 @@ def main():
                   activation=activation, 
                   seed=seed, 
                   negative_slope=negative_slope, 
-                  validation_day=validation_day)
+                  validation_day=validation_day,
+                  reward_type=reward_type)
     else:
         pool = mp.Pool(processes=args.procs)
         for trial in range(1, args.trials + 1):
@@ -88,7 +89,8 @@ def main():
                                    "activation": activation, 
                                    "seed": seed, 
                                    "negative_slope": negative_slope,
-                                   "validation_day": validation_day})
+                                   "validation_day": validation_day,
+                                   "reward_type": reward_type})
         pool.close()
         pool.join()
 
@@ -102,7 +104,8 @@ def run_trial(args, trial, run, **kwargs):
     seed = kwargs.get("seed")
     negative_slope = kwargs.get("negative_slope")
     validation_day = kwargs.get("validation_day")
-    
+    reward_type = kwargs.get("reward_type")
+
     mdp_config = mdp_configs.get(agent)
     if mdp_config is not None:
         mdp_map_config = mdp_config.get(map)
@@ -151,7 +154,7 @@ def run_trial(args, trial, run, **kwargs):
         map,
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
-        agt_config["reward"],
+        reward_type,
         validation_day_directory_name=validation_day,
         route=route,
         step_length=map_config["step_length"],
@@ -224,6 +227,9 @@ def download_models(run: neptune.Run, path_to_models: str):
 
 def fetch_experiment_data(run: neptune.Run):
     params = run["parameters"].fetch()
+    tags = run["sys/tags"].fetch()
+    reward_type = [item.split('Reward: ')[1] for item in tags if 'Reward: ' in item][0]
+
     agent = params.get("algorithm")
     map = params.get("map")
     episodes = params.get("number_episodes")
@@ -232,7 +238,7 @@ def fetch_experiment_data(run: neptune.Run):
     seed = params.get("seed")
     negative_slope = params.get("negative_slope", 0.01)
     validation_day = params.get("validation_day", "26NovFull")
-    return agent, map, episodes, net, activation, seed, negative_slope, validation_day
+    return agent, map, episodes, net, activation, seed, negative_slope, validation_day, reward_type
 
 
 def remove_files(path: str):
