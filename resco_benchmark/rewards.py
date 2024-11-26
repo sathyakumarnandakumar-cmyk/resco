@@ -48,7 +48,7 @@ def queue_maxwait(signals):
         reward = 0
         for lane in signal.lanes:
             reward += signal.full_observation[lane]['queue']
-            reward += (signal.full_observation[lane]['max_wait'] * mdp_configs['MA2C']['coef'])
+            reward += (signal.full_observation[lane]['max_wait'] * 0.4)
         rewards[signal_id] = -reward
     return rewards
 
@@ -63,7 +63,7 @@ def queue_maxwait_neighborhood(signals):
         for key in signal.downstream:
             neighbor = signal.downstream[key]
             if neighbor is not None:
-                sum_reward += (mdp_configs['MA2C']['coop_gamma'] * rewards[neighbor])
+                sum_reward += (0.9 * rewards[neighbor])
         neighborhood_rewards[signal_id] = sum_reward
 
     return neighborhood_rewards

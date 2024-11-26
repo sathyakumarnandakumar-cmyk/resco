@@ -83,6 +83,13 @@ def main():
     # Allows you to manipulate the slope of the leaky_relu chart
     ap.add_argument("--negative_slope", type=float, default=0.01)
     ap.add_argument("--libsumo", type=bool, default=False)
+    ap.add_argument("--reward-type", type=str, default="queue_maxwait", choices=[
+        "wait",
+        "wait_norm",
+        "pressure",
+        "queue_maxwait",
+        "queue_maxwait_neighborhood"
+    ])
     ap.add_argument(
         "--tr", type=int, default=0
     )  # Can't multi-thread with libsumo, provide a trial number
@@ -165,7 +172,7 @@ def run_trial(args, trial):
         args.map,
         os.path.join(args.pwd, map_config["net"]),
         agt_config["state"],
-        agt_config["reward"],
+        args.reward_type,
         validation_day_directory_name=args.validation_day,
         route=route,
         step_length=map_config["step_length"],
@@ -240,7 +247,7 @@ def run_trial(args, trial):
                 # "10 episodes - train, 1 episode - validation on new own generated file",
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
                 "no new vehicles after 1 hour",
-                f"Reward: {agent_configs[args.agent]['reward'].__name__}",
+                f"Reward: {args.reward_type}",
                 # "5e5 steps",
                 "7-8 am",
                 # "aggregating data from lanes on the same road",

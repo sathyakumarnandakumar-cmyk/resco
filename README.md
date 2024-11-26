@@ -39,25 +39,24 @@ To run or visualize an experiment you must install:
 Get your Neptune.ai token (**see: [HOW TO GET Neptune.ai TOKEN](#neptune_token)**), open `main.py` file and replace `"your_api_token"` in the `neptune.init_run()` method with your token.
 ```python
 run = neptune.init_run(
-            api_token="your_api_token",
-            project="pgora/Malaysia2",
-            name=f"{args.agent}-sumo-v0",
-            description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
-            tags=[
-                "sumo-v0",
-                f"{args.agent}",
-                f"Net: {args.net}",
-                f"Activation: {args.activation}",
-                "stable-baselines3",
-                # "10 episodes - train, 1 episode - validation on new own generated file",
-                "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
-                "no new vehicles after 1 hour",
-                f"Reward: {agent_configs[args.agent]['reward'].__name__}",
-                # "5e5 steps",
-                "7-8 am",
-                # "aggregating data from lanes on the same road",
-            ],
-        )
+    name=f"{args.agent}-sumo-v0",
+    description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
+    tags=[
+        "sumo-v0",
+        os.environ.get('NEPTUNE_OWNER_RUNNING_EXPERIMENT'),
+        f"{args.agent}",
+        f"Net: {args.net}",
+        f"Activation: {args.activation}",
+        "stable-baselines3",
+        # "10 episodes - train, 1 episode - validation on new own generated file",
+        "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
+        "no new vehicles after 1 hour",
+        f"Reward: {args.reward_type}",
+        # "5e5 steps",
+        "7-8 am",
+        # "aggregating data from lanes on the same road",
+    ],
+    )
 ```
 Open the console, navigate to the `resco_benchmark` directory (`cd resco_benchmark`) and enter the following command:
 
@@ -158,7 +157,7 @@ Note that there are also other parameters to set.
   </td>
 <tr>
   <td>
-  log_dir
+  --log_dir
   </td>
   <td>
   Any directory (string)
@@ -168,7 +167,7 @@ Note that there are also other parameters to set.
   </td>
 <tr>
   <td>
-  procs
+  --procs
   </td>
   <td>
   Any positive integer
@@ -188,6 +187,17 @@ Note that there are also other parameters to set.
   <td>
 
   Loads provided models from `models/models_for_visualization` directory. Used for visualization, but also we can continue training from a checkpoint. To resume training, we need to enable the training mode for the model (for example `agents/pfrl_dqn.py` -> comment out line 34 `self.agents[key].agent.training = False`).
+  </td>
+
+<tr>
+  <td>
+  --reward-type
+  </td>
+  <td>
+  Type of reward (string)
+  </td>
+  <td>
+  Define the reward type the agent should learn. If you don't define it the default reward will be `queue_maxwait.` You can find more information in resco_benchmark/rewards.py.
   </td>
 <tbody></table>
 
