@@ -1,2 +1,2 @@
-snakeviz
-scalene
+scalene==1.5.45
+snakeviz==2.2.0
