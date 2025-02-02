@@ -228,7 +228,14 @@ def download_models(run: neptune.Run, path_to_models: str):
 def fetch_experiment_data(run: neptune.Run):
     params = run["parameters"].fetch()
     tags = run["sys/tags"].fetch()
-    reward_type = [item.split('Reward: ')[1] for item in tags if 'Reward: ' in item][0]
+
+    reward_type = params.get("reward")
+
+    if reward_type is None:
+        try:
+            reward_type = next((item.split('Reward: ')[1] for item in tags if 'Reward: ' in item))
+        except StopIteration:
+            raise ValueError("No 'reward' value found in params or tags.")
 
     agent = params.get("algorithm")
     map = params.get("map")
