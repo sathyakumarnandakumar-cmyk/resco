@@ -230,7 +230,7 @@ def run_trial(args, trial):
             "validation_day": args.validation_day,
             "validation_period": env.validation_period_file_name.removesuffix(".rou.xml"),
             "seed": args.seed,
-            "phases": {connection_name: len(phases) for connection_name, phases in env.phases.items()}
+            "phases": {connection_name: len(phases) for connection_name, phases in env.phases.items()},
         }
         if args.activation == "leaky_relu":
             PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
