@@ -1,0 +1,4 @@
+-r requirements.txt
+scalene==1.5.45
+snakeviz==2.2.0
+pre-commit>=4.1.0
