@@ -20,10 +20,13 @@ logger = logging.getLogger('resco_benchmark')
 
 
 class MultiSignal(gym.Env):
-    def __init__(self, run_name, map_name, net, state_fn, reward_type,  validation_day_directory_name: str, route=None,
-                 gui=False, start_time=0, end_time=3600, step_length=10, yellow_length=3, step_ratio=1, max_distance=200,
-                 lights=(), log_dir='/', libsumo=False, warmup=0, gymma=False, mode="training", seed=42,
-                 validation_period_file_name: str = "BB5B_7-8am.rou.xml"):
+    def __init__(self, run_name, map_name, net, state_fn, reward_type,
+                 validation_day_directory_name: str,
+                 validation_period_file_name: str, route=None,
+                 gui=False, start_time=0, end_time=3600, step_length=10,
+                 yellow_length=3, step_ratio=1, max_distance=200,
+                 lights=(), log_dir='/', libsumo=False, warmup=0,
+                 gymma=False, mode="training", seed=42):
         self.libsumo = libsumo
         self.gymma = gymma  # gymma expects sequential list of states/rewards instead of dict
 
@@ -49,8 +52,6 @@ class MultiSignal(gym.Env):
         self.run = None
         self.mode = mode
         self.seed = seed
-        self.validation_day_directory_name = validation_day_directory_name
-        self.validation_period_file_name = validation_period_file_name
 
         # Run some steps in the simulation with default light configurations to detect phases
         if self.route is not None:
@@ -156,6 +157,8 @@ class MultiSignal(gym.Env):
             self.vehicles_on_simulation = {}
             self.vehicles_on_incoming_lanes = dict()
             self.vehicles_on_outcoming_lanes = dict()
+            self.validation_day_directory_name = validation_day_directory_name
+            self.validation_period_file_name = self.map_name + "_" + validation_period_file_name + ".rou.xml"
 
     def step_sim(self):
         # The monaco scenario expects .25s steps instead of 1s, account for that here.
