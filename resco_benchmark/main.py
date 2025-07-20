@@ -247,12 +247,9 @@ def run_trial(args, trial):
                 f"Net: {args.net}",
                 f"Activation: {args.activation}",
                 "stable-baselines3",
-                # "10 episodes - train, 1 episode - validation on new own generated file",
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
                 "no new vehicles after 1 hour",
-                # "5e5 steps",
-                "7-8 am",
-                # "aggregating data from lanes on the same road",
+                f"{args.validation_period}"
             ],
         )
         run["parameters"] = PARAMS_ALGORITHM

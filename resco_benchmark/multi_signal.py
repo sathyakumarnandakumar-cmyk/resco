@@ -1,5 +1,6 @@
 import codecs
 import os
+import re
 from pathlib import Path
 from statistics import mean, stdev
 
@@ -201,7 +202,14 @@ class MultiSignal(gym.Env):
                     # generate train file with routes
                     self.route = self.generate_training_file_with_routes()
                 else: # if mode = validation
-                    self.route = Path("environments", "BB5B", self.validation_day_directory_name, self.validation_period_file_name)
+                    self.route = Path("environments", self.map_name, self.validation_day_directory_name, self.validation_period_file_name)
+                begin, end = self.get_time_bounds_from_filename(self.validation_period_file_name)
+
+                self.sumo_cmd += [
+                    '--begin', str(begin),
+                    '--end', str(end)
+                ]
+
                 self.sumo_cmd += ['-c', self.net, '-r', str(self.route)]
             else:
                 self.sumo_cmd += ['-c', self.net]
@@ -464,6 +472,37 @@ class MultiSignal(gym.Env):
     def reset_traci_subscriptions(self):
         for subscription in self._traci_subscriptions:
             self._traci_subscriptions[subscription] = None
+
+    def _to_24_hour(self, hour: int, meridiem: str) -> int:
+        """Convert 12-hour time to 24-hour format."""
+        if meridiem == 'am':
+            return 0 if hour == 12 else hour
+        if meridiem == 'pm':
+            return hour if hour == 12 else hour + 12
+        raise ValueError("Invalid meridiem format")
+
+    def get_time_bounds_from_filename(self, filename: str) -> tuple[int, int]:
+        """
+        Extracts the start and end hours from a file name and converts them to seconds.
+        Expected filename formats:
+          - "BB5B_7-8am.rou.xml"
+          - "BB5B_1-2pm.rou.xml"
+
+        Returns:
+            tuple: (begin_time_in_seconds, end_time_in_seconds)
+        """
+        match = re.search(r'(\d+)-(\d+)(am|pm)', filename)
+        if not match:
+            raise ValueError(f"Invalid filename format: '{filename}' "
+                             "— expected time pattern like '7-8am' or '1-2pm'.")
+
+        start_hour, end_hour, meridiem = match.groups()
+        start_hour = self._to_24_hour(int(start_hour), meridiem)
+        end_hour = self._to_24_hour(int(end_hour), meridiem)
+
+        begin = start_hour * 3600
+        end = end_hour * 3600
+        return begin, end
 
     def get_traci_subscription(self, subscription_id):
         res = self._traci_subscriptions[subscription_id]
@@ -862,22 +901,24 @@ class MultiSignal(gym.Env):
     def generate_training_file_with_routes(self):
 
         # load available routes in the environment
-        with codecs.open(str(Path("environments", "BB5B", "routes", "default.yaml")), "r", "utf-8") as file:
+        with codecs.open(str(Path("environments", self.map_name, "routes", "default.yaml")), "r", "utf-8") as file:
             routes_descr = yaml.safe_load(file)
         # load the available types of vehicles in the environment
-        with codecs.open(str(Path("environments", "BB5B", "vehicles", "default.yaml")), "r", "utf-8") as file:
+        with codecs.open(str(Path("environments", self.map_name, "vehicles", "default.yaml")), "r", "utf-8") as file:
             vehicles_descr = yaml.safe_load(file)
 
-        path_to_save_rou = Path("environments", "BB5B", "training_routes_files_generated", self.run_name, "train.rou.xml")
+        path_to_save_rou = Path("environments", self.map_name, "training_routes_files_generated", self.run_name, "train.rou.xml")
 
         if not os.path.exists(str(path_to_save_rou)[:-14]):
             os.makedirs(str(path_to_save_rou)[:-14])
 
         # generate random new routes based on original data with routes from 26/11/2020 and 18/03/2021
         # if self.run % 2 == 0:
-        path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "26NovFull", "BB5B_7-8am.rou.xml")
+        path_from_original_rou = Path("environments", self.map_name,
+                                      self.validation_day_directory_name,
+                                      f"{self.validation_period_file_name}")
         # else:
-        # path_from_original_rou = Path("environments", "BB5B", "websterCalculated", "18MarFull", "BB5B_7-8am.rou.xml")
+        # path_from_original_rou = Path("environments", self.map_name", "websterCalculated", "18MarFull", "BB5B_7-8am.rou.xml")
 
         rou_generator = RoutesGenerator(
             path_to_save_rou=path_to_save_rou,
@@ -891,7 +932,7 @@ class MultiSignal(gym.Env):
 
         if rou_generator.path.exists():
             rou_generator.path.unlink()
-        rou_generator.path = Path("environments", "BB5B", "training_routes_files_generated", self.run_name, f"train_{self.run}.rou.xml")
+        rou_generator.path = Path("environments", self.map_name, "training_routes_files_generated", self.run_name, f"train_{self.run}.rou.xml")
         rou_generator(path_from_original_rou=path_from_original_rou)
 
         train_file = rou_generator.path
