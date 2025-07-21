@@ -57,6 +57,7 @@ def build_neptune_run_data(experiment_id: str, run: neptune.Run) -> dict:
         "Reward": run["parameters/reward"].fetch(),
         "Action_frequency": f"action every {run['parameters/action_frequency'].fetch()} seconds",
         "Date": "26-11-2022",
+        "Validation_period": run["parameters/validation_period"].fetch(),
         "Additional tags": run["sys/tags"].fetch(),
         "number_of_training_episodes": run[
             "parameters/number_of_training_episodes"
@@ -95,7 +96,9 @@ def get_neptune_metrics(run: neptune.Run) -> dict:
 
 
 def fetch_neptune_run_data(experiment_id: str) -> dict | int:
-    run = neptune.init_run(with_id=experiment_id)
+    run = neptune.init_run(
+        with_id=experiment_id, capture_stdout=False, capture_stderr=False
+    )
     data = build_neptune_run_data(experiment_id, run)
     metrics = get_neptune_metrics(run)
     data.update(metrics)
