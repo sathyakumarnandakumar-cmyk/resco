@@ -217,7 +217,7 @@ To visualize the model, copy the token from the Neptune.ai (**see: [HOW TO GET N
 ```python
 run = neptune.init_run(
         api_token="your_api_token",
-        project="pgora/Malaysia2",
+        project="tensorcell1/Malaysia",
         with_id=args.experiment_name,
         mode="read-only"
     )
