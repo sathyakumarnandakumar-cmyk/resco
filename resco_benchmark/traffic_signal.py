@@ -193,12 +193,19 @@ class Signal:
 
     def update(self):
         self.time_since_last_phase_change += 1
-        if self.is_yellow and self.time_since_last_phase_change == self.yellow_time:
-            traci.trafficlight.setPhase(self.id, self.phase + 1)  # turns red
+
+        if self.time_since_last_phase_change >= self.max_green:
+            traci.trafficlight.setPhase(self.id, self.phase + 1)
+            self.is_yellow = True
+            self.time_since_last_phase_change = 0
+
+        if self.is_yellow and self.time_since_last_phase_change >= self.yellow_time:
+            traci.trafficlight.setPhase(self.id, self.phase + 1) # turns red
             self.is_yellow = False
             self.is_red = True
             self.time_since_last_phase_change = 0
-        elif self.is_red and self.time_since_last_phase_change == self.red_time:
+
+        if self.is_red and self.time_since_last_phase_change >= self.red_time:
             if self.phase + 1 >= len(self.phases):
                 self.next_phase = 0
             else:
