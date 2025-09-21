@@ -14,9 +14,11 @@ from config.agent_config import agent_configs
 from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
+from utils.time_utils import convert_time_range_to_seconds
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ModuleNotFoundError:
     pass
@@ -84,13 +86,18 @@ def main():
     # Allows you to manipulate the slope of the leaky_relu chart
     ap.add_argument("--negative_slope", type=float, default=0.01)
     ap.add_argument("--libsumo", type=bool, default=False)
-    ap.add_argument("--reward-type", type=str, default="queue_maxwait", choices=[
-        "wait",
-        "wait_norm",
-        "pressure",
-        "queue_maxwait",
-        "queue_maxwait_neighborhood"
-    ])
+    ap.add_argument(
+        "--reward-type",
+        type=str,
+        default="queue_maxwait",
+        choices=[
+            "wait",
+            "wait_norm",
+            "pressure",
+            "queue_maxwait",
+            "queue_maxwait_neighborhood",
+        ],
+    )
     ap.add_argument(
         "--tr", type=int, default=0
     )  # Can't multi-thread with libsumo, provide a trial number
@@ -150,6 +157,11 @@ def run_trial(args, trial):
     num_steps_eps = int(
         (map_config["end_time"] - map_config["start_time"]) / map_config["step_length"]
     )
+    if args.map == "BB5B":
+        start_time, end_time = convert_time_range_to_seconds(args.validation_period)
+        map_config["start_time"] = start_time
+        map_config["end_time"] = end_time
+
     route = map_config["route"]
     if route is not None:
         route = os.path.join(args.pwd, route)
@@ -158,14 +170,17 @@ def run_trial(args, trial):
             raise EnvironmentError(
                 "You must decompress environment files defining traffic flow"
             )
-
     env = MultiSignal(
         alg.__name__
         + "-net"
         + args.net
         + "-activ"
         + args.activation
-        + (f"-neg_slope{args.negative_slope}" if args.activation == "leaky_relu" else "")
+        + (
+            f"-neg_slope{args.negative_slope}"
+            if args.activation == "leaky_relu"
+            else ""
+        )
         + "-seed"
         + str(args.seed)
         + "-tr"
@@ -191,11 +206,15 @@ def run_trial(args, trial):
         seed=args.seed,
     )
 
-    agt_config["episodes"] = int(args.eps_val * args.validation_interval * 0.8)  # schedulers decay over 80% of steps
+    agt_config["episodes"] = int(
+        args.eps_val * args.validation_interval * 0.8
+    )  # schedulers decay over 80% of steps
     agt_config["steps"] = agt_config["episodes"] * num_steps_eps
     agt_config["log_dir"] = os.path.join(args.log_dir, env.connection_name)
     agt_config["models_dir"] = os.path.join(args.models_dir, env.connection_name)
-    agt_config["models_for_visualization"] = os.path.join(args.models_dir, "models_for_visualization")
+    agt_config["models_for_visualization"] = os.path.join(
+        args.models_dir, "models_for_visualization"
+    )
     agt_config["num_lights"] = len(env.all_ts_ids)
     agt_config["load"] = args.load
 
@@ -203,7 +222,7 @@ def run_trial(args, trial):
         os.mkdir(agt_config["models_dir"])
     if not os.path.exists(agt_config["models_for_visualization"]):
         os.mkdir(agt_config["models_for_visualization"])
-    
+
     # Get agent id's, observation shapes, and action sizes from env
     obs_act = dict()
     for key in env.obs_shape:
@@ -212,10 +231,15 @@ def run_trial(args, trial):
             2 if key in env.phases else None,
         ]
     if args.agent == "IDQN" or args.agent == "IPPO":
-        agent = alg(agt_config, obs_act, args.map, trial, 
-                    net=args.net,
-                    activation=args.activation,
-                    negative_slope=args.negative_slope)
+        agent = alg(
+            agt_config,
+            obs_act,
+            args.map,
+            trial,
+            net=args.net,
+            activation=args.activation,
+            negative_slope=args.negative_slope,
+        )
     else:
         agent = alg(agt_config, obs_act, args.map, trial)
     run = None
@@ -223,7 +247,8 @@ def run_trial(args, trial):
         PARAMS_ALGORITHM = {
             "action_frequency": env.step_length,
             "algorithm": args.agent,
-            "number_of_training_episodes": args.eps_val*args.validation_interval - args.eps_val,
+            "number_of_training_episodes": args.eps_val * args.validation_interval
+            - args.eps_val,
             "number_of_validation_episodes": args.eps_val,
             "map": args.map,
             "net": args.net,
@@ -232,24 +257,27 @@ def run_trial(args, trial):
             "validation_day": args.validation_day,
             "validation_period": args.validation_period,
             "seed": args.seed,
-            "phases": {connection_name: len(phases) for connection_name, phases in env.phases.items()},
+            "phases": {
+                connection_name: len(phases)
+                for connection_name, phases in env.phases.items()
+            },
         }
         if args.activation == "leaky_relu":
             PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
-        
+
         run = neptune.init_run(
             name=f"{args.agent}-sumo-v0",
             description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
             tags=[
                 "sumo-v0",
-                os.environ.get('NEPTUNE_OWNER_RUNNING_EXPERIMENT'),
+                os.environ.get("NEPTUNE_OWNER_RUNNING_EXPERIMENT"),
                 f"{args.agent}",
                 f"Net: {args.net}",
                 f"Activation: {args.activation}",
                 "stable-baselines3",
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
                 "no new vehicles after 1 hour",
-                f"{args.validation_period}"
+                f"{args.validation_period}",
             ],
         )
         run["parameters"] = PARAMS_ALGORITHM
@@ -259,7 +287,7 @@ def run_trial(args, trial):
     # based on which we'll choose the best model(s).
     dict_with_agents = {}
 
-    for i in range(1, args.eps_val*args.validation_interval + 1):
+    for i in range(1, args.eps_val * args.validation_interval + 1):
         if args.map == "BB5B":
             if i % args.validation_interval != 0:
                 mode = "training"
@@ -281,17 +309,19 @@ def run_trial(args, trial):
             if args.agent == "STOCHASTIC":
                 for _, model in agent.agents.items():
                     model.random_state = random.getstate()
-            validation_eps_number = int(i/args.validation_interval - 1)
+            validation_eps_number = int(i / args.validation_interval - 1)
             dict_with_agents[f"eps_{validation_eps_number}"] = {
                 "total_average_delays_of_all_vehicles_from_all_routes": info[
                     "total_average_delays_of_all_vehicles_from_all_routes"
                 ],
                 "count_of_vehicles_completing_journey": info[
                     "count_of_vehicles_completing_journey"
-                ]
+                ],
             }
 
-            valid_models_subdir = os.path.join(agt_config["models_dir"], f"eps_{validation_eps_number}")
+            valid_models_subdir = os.path.join(
+                agt_config["models_dir"], f"eps_{validation_eps_number}"
+            )
             if not os.path.exists(valid_models_subdir):
                 os.mkdir(valid_models_subdir)
 
@@ -302,17 +332,15 @@ def run_trial(args, trial):
 
     if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
         best_validation_model, zipped_best_model = make_archive(
-            dict_with_agents=dict_with_agents,
-            valid_models_dir=agt_config["models_dir"]
+            dict_with_agents=dict_with_agents, valid_models_dir=agt_config["models_dir"]
         )
-        run[
-            f"models/{best_validation_model}"
-            ].upload(f"{zipped_best_model}.zip", wait=True)
+        run[f"models/{best_validation_model}"].upload(
+            f"{zipped_best_model}.zip", wait=True
+        )
         shutil.rmtree(agt_config["models_dir"])
 
 
 def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
-
     if not done:
         run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
         run["metrics/" + mode + "/action/INFMain_Junc"].log(
@@ -710,8 +738,8 @@ def choose_best_validation_model(dict_with_agents: dict):
 
 def make_archive(dict_with_agents: dict, valid_models_dir: str):
     best_validation_model = choose_best_validation_model(
-            dict_with_agents=dict_with_agents
-        )
+        dict_with_agents=dict_with_agents
+    )
     zipped_best_model = os.path.join(valid_models_dir, best_validation_model)
     shutil.make_archive(zipped_best_model, "zip", zipped_best_model)
     return best_validation_model, zipped_best_model
