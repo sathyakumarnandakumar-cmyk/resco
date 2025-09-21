@@ -1,6 +1,5 @@
 import codecs
 import os
-import re
 from pathlib import Path
 from statistics import mean, stdev
 
@@ -203,11 +202,10 @@ class MultiSignal(gym.Env):
                     self.route = self.generate_training_file_with_routes()
                 else: # if mode = validation
                     self.route = Path("environments", self.map_name, self.validation_day_directory_name, self.validation_period_file_name)
-                begin, end = self.get_time_bounds_from_filename(self.validation_period_file_name)
 
                 self.sumo_cmd += [
-                    '--begin', str(begin),
-                    '--end', str(end)
+                    '--begin', str(self.start_time),
+                    '--end', str(self.end_time)
                 ]
 
                 self.sumo_cmd += ['-c', self.net, '-r', str(self.route)]
@@ -472,37 +470,6 @@ class MultiSignal(gym.Env):
     def reset_traci_subscriptions(self):
         for subscription in self._traci_subscriptions:
             self._traci_subscriptions[subscription] = None
-
-    def _to_24_hour(self, hour: int, meridiem: str) -> int:
-        """Convert 12-hour time to 24-hour format."""
-        if meridiem == 'am':
-            return 0 if hour == 12 else hour
-        if meridiem == 'pm':
-            return hour if hour == 12 else hour + 12
-        raise ValueError("Invalid meridiem format")
-
-    def get_time_bounds_from_filename(self, filename: str) -> tuple[int, int]:
-        """
-        Extracts the start and end hours from a file name and converts them to seconds.
-        Expected filename formats:
-          - "BB5B_7-8am.rou.xml"
-          - "BB5B_1-2pm.rou.xml"
-
-        Returns:
-            tuple: (begin_time_in_seconds, end_time_in_seconds)
-        """
-        match = re.search(r'(\d+)-(\d+)(am|pm)', filename)
-        if not match:
-            raise ValueError(f"Invalid filename format: '{filename}' "
-                             "— expected time pattern like '7-8am' or '1-2pm'.")
-
-        start_hour, end_hour, meridiem = match.groups()
-        start_hour = self._to_24_hour(int(start_hour), meridiem)
-        end_hour = self._to_24_hour(int(end_hour), meridiem)
-
-        begin = start_hour * 3600
-        end = end_hour * 3600
-        return begin, end
 
     def get_traci_subscription(self, subscription_id):
         res = self._traci_subscriptions[subscription_id]

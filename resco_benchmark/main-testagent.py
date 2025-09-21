@@ -12,20 +12,19 @@ from config.agent_config import agent_configs
 from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
+from utils.time_utils import convert_time_range_to_seconds
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ModuleNotFoundError:
     pass
 
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--experiment_name",
-        type=str,
-        required=True
-    )
+    ap.add_argument("--experiment_name", type=str, required=True)
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--procs", type=int, default=1)
     ap.add_argument("--pwd", type=str, default=os.path.dirname(__file__))
@@ -51,12 +50,20 @@ def main():
         raise EnvironmentError(
             "Set LIBSUMO_AS_TRACI to nonempty value to enable libsumo"
         )
-    
-    run = neptune.init_run(
-        with_id=args.experiment_name,
-        mode="read-only"
-    )
-    agent, map, episodes, net, activation, seed, negative_slope, validation_day, reward_type = fetch_experiment_data(run)
+
+    run = neptune.init_run(with_id=args.experiment_name, mode="read-only")
+    (
+        agent,
+        map,
+        episodes,
+        net,
+        activation,
+        seed,
+        negative_slope,
+        validation_day,
+        validation_period,
+        reward_type,
+    ) = fetch_experiment_data(run)
 
     np.random.seed(seed)
     random.seed(seed)
@@ -68,29 +75,40 @@ def main():
     torch.backends.cudnn.benchmark = False
 
     if args.procs == 1 or args.libsumo:
-        run_trial(args, args.tr, run, 
-                  agent=agent, 
-                  map=map, 
-                  episodes=episodes, 
-                  net=net, 
-                  activation=activation, 
-                  seed=seed, 
-                  negative_slope=negative_slope, 
-                  validation_day=validation_day,
-                  reward_type=reward_type)
+        run_trial(
+            args,
+            args.tr,
+            run,
+            agent=agent,
+            map=map,
+            episodes=episodes,
+            net=net,
+            activation=activation,
+            seed=seed,
+            negative_slope=negative_slope,
+            validation_day=validation_day,
+            validation_period=validation_period,
+            reward_type=reward_type,
+        )
     else:
         pool = mp.Pool(processes=args.procs)
         for trial in range(1, args.trials + 1):
-            pool.apply_async(run_trial, args=(args, trial, run), 
-                             kwds={"agent": agent, 
-                                   "map": map, 
-                                   "episodes": episodes, 
-                                   "net": net, 
-                                   "activation": activation, 
-                                   "seed": seed, 
-                                   "negative_slope": negative_slope,
-                                   "validation_day": validation_day,
-                                   "reward_type": reward_type})
+            pool.apply_async(
+                run_trial,
+                args=(args, trial, run),
+                kwds={
+                    "agent": agent,
+                    "map": map,
+                    "episodes": episodes,
+                    "net": net,
+                    "activation": activation,
+                    "seed": seed,
+                    "negative_slope": negative_slope,
+                    "validation_day": validation_day,
+                    "validation_period": validation_period,
+                    "reward_type": reward_type,
+                },
+            )
         pool.close()
         pool.join()
 
@@ -98,12 +116,15 @@ def main():
 def run_trial(args, trial, run, **kwargs):
     agent = kwargs.get("agent")
     map = kwargs.get("map")
-    episodes = kwargs.get("episodes")
+    episodes = kwargs.get(
+        "episodes"
+    )  # kwargs.get("number_of_training_episodes") + kwargs.get("number_of_validation_episodes")
     net = kwargs.get("net")
     activation = kwargs.get("activation")
     seed = kwargs.get("seed")
     negative_slope = kwargs.get("negative_slope")
     validation_day = kwargs.get("validation_day")
+    validation_period = kwargs.get("validation_period")
     reward_type = kwargs.get("reward_type")
 
     mdp_config = mdp_configs.get(agent)
@@ -131,6 +152,11 @@ def run_trial(args, trial, run, **kwargs):
     num_steps_eps = int(
         (map_config["end_time"] - map_config["start_time"]) / map_config["step_length"]
     )
+    if map == "BB5B":
+        start_time, end_time = convert_time_range_to_seconds(args.validation_period)
+        map_config["start_time"] = start_time
+        map_config["end_time"] = end_time
+
     route = map_config["route"]
     if route is not None:
         route = os.path.join(args.pwd, route)
@@ -156,6 +182,7 @@ def run_trial(args, trial, run, **kwargs):
         agt_config["state"],
         reward_type,
         validation_day_directory_name=validation_day,
+        validation_period_file_name=validation_period,
         route=route,
         step_length=map_config["step_length"],
         yellow_length=map_config["yellow_length"],
@@ -175,10 +202,12 @@ def run_trial(args, trial, run, **kwargs):
     agt_config["steps"] = episodes * num_steps_eps
     agt_config["log_dir"] = os.path.join(args.log_dir, env.connection_name)
     agt_config["models_dir"] = os.path.join(args.models_dir, env.connection_name)
-    agt_config["models_for_visualization"] = os.path.join(args.models_dir, "models_for_visualization" + os.sep)
+    agt_config["models_for_visualization"] = os.path.join(
+        args.models_dir, "models_for_visualization" + os.sep
+    )
     agt_config["num_lights"] = len(env.all_ts_ids)
     agt_config["load"] = args.load
-    
+
     if not os.path.exists(args.models_dir):
         os.mkdir(args.models_dir)
     if not os.path.exists(agt_config["models_for_visualization"]):
@@ -194,10 +223,15 @@ def run_trial(args, trial, run, **kwargs):
             2 if key in env.phases else None,
         ]
     if agent == "IDQN" or args.agent == "IPPO":
-        agent = alg(agt_config, obs_act, map, trial, 
-                    net=net, 
-                    activation=activation,
-                    negative_slope=negative_slope)
+        agent = alg(
+            agt_config,
+            obs_act,
+            map,
+            trial,
+            net=net,
+            activation=activation,
+            negative_slope=negative_slope,
+        )
     else:
         agent = alg(agt_config, obs_act, map, trial)
     remove_files(agt_config["models_for_visualization"])
@@ -210,7 +244,7 @@ def run_trial(args, trial, run, **kwargs):
         act = agent.act(obs)
         obs, rew, done, eps, info = env.step(act)
         agent.observe(obs, rew, done, info)
-        
+
     env.close()
 
 
@@ -219,10 +253,12 @@ def download_models(run: neptune.Run, path_to_models: str):
         raise FileNotFoundError("Directory 'models' does not exists.")
     model_name = list(run.get_structure().get("models").keys())[0]
     run[f"models/{model_name}"].download(path_to_models)
-    
-    shutil.unpack_archive(filename=os.path.join(path_to_models, f"{model_name}.zip"),
-                          extract_dir=path_to_models,
-                          format="zip")
+
+    shutil.unpack_archive(
+        filename=os.path.join(path_to_models, f"{model_name}.zip"),
+        extract_dir=path_to_models,
+        format="zip",
+    )
 
 
 def fetch_experiment_data(run: neptune.Run):
@@ -233,19 +269,35 @@ def fetch_experiment_data(run: neptune.Run):
 
     if reward_type is None:
         try:
-            reward_type = next((item.split('Reward: ')[1] for item in tags if 'Reward: ' in item))
+            reward_type = next(
+                (item.split("Reward: ")[1] for item in tags if "Reward: " in item)
+            )
         except StopIteration:
             raise ValueError("No 'reward' value found in params or tags.")
 
     agent = params.get("algorithm")
     map = params.get("map")
-    episodes = params.get("number_episodes")
+    episodes = params.get("number_of_training_episodes") + params.get(
+        "number_of_validation_episodes"
+    )
     net = params.get("net")
     activation = params.get("activation")
     seed = params.get("seed")
     negative_slope = params.get("negative_slope", 0.01)
     validation_day = params.get("validation_day", "26NovFull")
-    return agent, map, episodes, net, activation, seed, negative_slope, validation_day, reward_type
+    validation_period = params.get("validation_period", "7-8am")
+    return (
+        agent,
+        map,
+        episodes,
+        net,
+        activation,
+        seed,
+        negative_slope,
+        validation_day,
+        validation_period,
+        reward_type,
+    )
 
 
 def remove_files(path: str):
