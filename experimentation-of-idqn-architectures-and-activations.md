@@ -66,7 +66,7 @@ Metrics extracted across 5 validation episodes.
 | Model Combination | Throughput (Veh) | Avg Delay (s) |
 | :--- | :---: | :---: |
 | **MLP + ReLU** | **3470** | **2.38** |
-| **GNN + LeakyReLU** | **3460** | 2.85 |
+| **GNN + Leaky ReLU** | **3460** | 2.85 |
 | **Double Conv + ReLU** | 3451 | **2.47** |
 | **Default + LeakyReLU** | 3441 | 2.58 |
 | **Default + ReLU** | 3362 | 2.84 |
