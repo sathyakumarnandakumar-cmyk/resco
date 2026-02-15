@@ -1,0 +1,99 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>reward_modelling.md</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; color: #24292e; max_width: 900px; margin: 0 auto; padding: 20px; }
+h1, h2, h3 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
+h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+code { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; margin: 0; padding: 0.2em 0.4em; }
+pre { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; line-height: 1.45; overflow: auto; padding: 16px; }
+pre code { background-color: transparent; border: 0; display: inline; line-height: inherit; margin: 0; overflow: visible; padding: 0; word-wrap: normal; }
+table { border-collapse: collapse; border-spacing: 0; display: block; overflow: auto; width: 100%; margin-top: 0; margin-bottom: 16px; }
+table tr { background-color: #fff; border-top: 1px solid #c6cbd1; }
+table tr:nth-child(2n) { background-color: #f6f8fa; }
+table th, table td { border: 1px solid #dfe2e5; padding: 6px 13px; }
+table th { font-weight: 600; }
+blockquote { border-left: 0.25em solid #dfe2e5; color: #6a737d; padding: 0 1em; margin: 0; }
+img { max-width: 100%; box-sizing: content-box; background-color: #fff; }
+</style>
+</head><body><h1>Reward Modelling for BB5B (Malaysia)</h1>
+<p><strong>Date</strong>: Feb 15, 2026
+<strong>Map</strong>: BB5B (PBB $\leftrightarrow$ INFMain $\leftrightarrow$ SIRIM)
+<strong>Default Reward</strong>: <code>queue_maxwait</code></p>
+<p>This report analyzes available reward functions <em>specifically in the context of the BB5B arterial map</em>. BB5B is a tightly coupled North-South arterial corridor where the central intersection (<code>INFMain_Junc</code>) acts as a critical bottleneck.</p>
+<hr />
+<h2>1. The Chosen Default: <code>queue_maxwait</code></h2>
+<p><strong>Why it works for BB5B</strong>: This is the most balanced reward for an arterial with heavy side-street pressure.</p>
+<h3>Structure &amp; BB5B Impact</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Component</th>
+<th style="text-align: left;">Formula Term</th>
+<th style="text-align: left;">Impact on BB5B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Queue</strong></td>
+<td style="text-align: left;">$\sum Queue_l$</td>
+<td style="text-align: left;"><strong>Anti-Spillback</strong>: Prevents queues at <code>INFMain</code> from blocking <code>PBB</code> (upstream). Essential for maintaining the "green wave".</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Max Wait</strong></td>
+<td style="text-align: left;">$0.4 \times MaxWait_l$</td>
+<td style="text-align: left;"><strong>Side-Street Fairness</strong>: The arterial flow is huge. Without this term, agents would permanently green-light the North-South flow, starving East-West traffic.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Formula</strong>:
+$$ R_t = - \sum_{l} (Queue_l + 0.4 \times MaxWait_l) $$</p>
+<hr />
+<h2>2. Alternative Rewards vs. BB5B Reality</h2>
+<p>We analyze how other standard rewards would likely perform on this specific map topology.</p>
+<h3>A. <code>wait</code> (Minimize Total Delay)</h3>
+<ul>
+<li><strong>Formula</strong>: $R_t = - \sum TotalWait_l$</li>
+<li><strong>BB5B Analysis</strong>: <ul>
+<li><strong>Risk</strong>: High variance. The sheer volume of cars on the main road means total wait can explode quickly.</li>
+<li><strong>Instability</strong>: In early training, a bad policy could cause gridlock at <code>INFMain</code>, leading to massive negative rewards (e.g., -10,000) that destabilize the gradient updates.</li>
+</ul>
+</li>
+</ul>
+<h3>B. <code>pressure</code> (Max Pressure)</h3>
+<ul>
+<li><strong>Formula</strong>: $R_t = - | \sum Queue_{in} - \sum Queue_{out} |$</li>
+<li><strong>BB5B Analysis</strong>:<ul>
+<li><strong>Potential</strong>: Theoretically optimal for maximizing throughput. It would likely push traffic aggressively through <code>INFMain</code>.</li>
+<li><strong>Flaw</strong>: It does not penalize delay. In BB5B, side-street cars could wait forever if their queue length ($Queue_{in}$) doesn't exceed the downstream pressure. This is unacceptable for real-world deployment.</li>
+</ul>
+</li>
+</ul>
+<h3>C. <code>queue_maxwait_neighborhood</code> (Cooperative)</h3>
+<ul>
+<li><strong>Formula</strong>: $R_{local} + 0.9 \sum R_{neighbors}$</li>
+<li><strong>BB5B Analysis</strong>: <strong>Highly Recommended for Future Testing</strong>.<ul>
+<li><strong>Why</strong>: BB5B is a chain. If <code>INFMain</code> is congested, <code>PBB</code> <em>should</em> stop sending cars.</li>
+<li><strong>Mechanism</strong>: A standard agent at <code>PBB</code> only sees its own queue. A neighborhood agent sees <code>INFMain</code>'s penalty and learns to "gate" traffic, preventing the bottleneck from worsening.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>3. Suggested Reward Modelling for Future Work</h2>
+<p>To further optimize performance on this specific map, we propose these targeted modifications:</p>
+<h3>A. Throughput-Biased (Arterial Focus)</h3>
+<ul>
+<li><strong>Concept</strong>: Explicitly reward successful departures on the main road.</li>
+<li><strong>Formula</strong>: $R = R_{queue_maxwait} + \alpha \times N_{departures(Arterial)}$</li>
+<li><strong>Hypothesis</strong>: Will increase North-South bandwidth but may slightly increase East-West delay.</li>
+</ul>
+<h3>B. Bottleneck penalty</h3>
+<ul>
+<li><strong>Concept</strong>: Add a specific penalty if the queue at <code>INFMain</code> exceeds a threshold (e.g., 20 vehicles).</li>
+<li><strong>Formula</strong>: $R_{PBB} = R_{default} - \beta \times \mathbb{I}(Queue_{INFMain} &gt; 20)$</li>
+<li><strong>Hypothesis</strong>: Would force <code>PBB</code> to learn "gating" behavior much faster than standard neighborhood rewards.</li>
+</ul>
+<h3>C. Speed Maximization (Free Flow)</h3>
+<ul>
+<li><strong>Formula</strong>: $R = \sum (Speed / MaxSpeed)$</li>
+<li><strong>BB5B Analysis</strong>: Good for light traffic, but in heavy congestion (saturation), speeds drop to near zero, providing no learning signal. Likely to fail during rush hour peaks unless combined with Queue rewards.</li>
+</ul></body></html>

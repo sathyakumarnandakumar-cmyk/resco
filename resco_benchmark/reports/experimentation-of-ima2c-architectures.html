@@ -1,0 +1,244 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>experimentation-of-ima2c-architectures.md</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; color: #24292e; max_width: 900px; margin: 0 auto; padding: 20px; }
+h1, h2, h3 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
+h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+code { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; margin: 0; padding: 0.2em 0.4em; }
+pre { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; line-height: 1.45; overflow: auto; padding: 16px; }
+pre code { background-color: transparent; border: 0; display: inline; line-height: inherit; margin: 0; overflow: visible; padding: 0; word-wrap: normal; }
+table { border-collapse: collapse; border-spacing: 0; display: block; overflow: auto; width: 100%; margin-top: 0; margin-bottom: 16px; }
+table tr { background-color: #fff; border-top: 1px solid #c6cbd1; }
+table tr:nth-child(2n) { background-color: #f6f8fa; }
+table th, table td { border: 1px solid #dfe2e5; padding: 6px 13px; }
+table th { font-weight: 600; }
+blockquote { border-left: 0.25em solid #dfe2e5; color: #6a737d; padding: 0 1em; margin: 0; }
+img { max-width: 100%; box-sizing: content-box; background-color: #fff; }
+</style>
+</head><body><h1>Experimentation: IMA2C Model Architectures</h1>
+<p><strong>Date</strong>: Feb 15, 2026
+<strong>Agent</strong>: IMA2C (Independent Multi-Agent Advantage Actor-Critic)
+<strong>Environment</strong>: BB5B (Malaysia Map)
+<strong>Experiment Group</strong>: IMA2C Batch (55 Episodes)</p>
+<h2>1. Introduction</h2>
+<p>This report analyzes the performance of the newly implemented <strong>PyTorch IMA2C</strong> agent across four neural network architectures. We compare these results against the previously benchmarked <strong>IDQN</strong> and <strong>IPPO</strong> agents.</p>
+<p><em>Note: Metrics in this report are averaged over the entire duration of the validation episodes (3600s), providing a more accurate representation of overall traffic flow than instantaneous snapshots.</em></p>
+<hr />
+<h2>2. Model Architectures &amp; Implementation Details</h2>
+<p>The <strong>IMA2C (Independent Multi-Agent Advantage Actor-Critic)</strong> agent was implemented in <strong>PyTorch</strong>, porting the logic from the original TensorFlow MA2C codebase but adapting it to a modern, modular architecture. </p>
+<h3>Implementation Specifics</h3>
+<ol>
+<li>
+<p><strong>Decentralized Execution, Centralized Configuration</strong>:</p>
+<ul>
+<li>The <code>IMA2C</code> class manages a dictionary of independent <code>MA2CAgent</code> instances, one for each intersection.</li>
+<li>While agents act independently, they share a common configuration and are updated synchronously.</li>
+</ul>
+</li>
+<li>
+<p><strong>Shared Feature Encoder</strong>:</p>
+<ul>
+<li>Raw observations are not fed directly into the network. Instead, a custom <strong>Feature Encoder</strong> slices the input vector into three semantic components:<ul>
+<li><strong>Wave Features</strong>: Queue lengths and vehicle positions.</li>
+<li><strong>Wait Features</strong>: Cumulative wait times per lane.</li>
+<li><strong>Fingerprints</strong>: Action distributions from neighboring agents.</li>
+</ul>
+</li>
+<li>Each component is processed by its own dedicated Linear layer (embedding) before being concatenated. This ensures the network can learn distinct representations for local state vs. neighbor context.</li>
+</ul>
+</li>
+<li>
+<p><strong>Fingerprint Mechanism</strong>:</p>
+<ul>
+<li>To promote coordination, each agent broadcasts its current <strong>Policy</strong> (action probability distribution) to its downstream neighbors.</li>
+<li>These "fingerprints" are included in the neighbor's observation for the <em>next</em> time step, allowing agents to anticipate neighbor behavior.</li>
+</ul>
+</li>
+<li>
+<p><strong>Training Loop</strong>:</p>
+<ul>
+<li><strong>On-Policy Learning</strong>: Agents collect trajectories in a local buffer and perform updates every batch (e.g., 120 steps).</li>
+<li><strong>Advantage Estimation</strong>: Uses N-step returns to compute advantages ($A_t = R_t - V(s_t)$).</li>
+<li><strong>Optimization</strong>: Trained via <strong>RMSprop</strong> with Gradient Clipping (norm 40) and <strong>Entropy Regularization</strong> (coef 0.01) to encourage exploration.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h3>Neural Network Variants</h3>
+<p>We evaluated four distinct "backbone" architectures that process the output of the Shared Feature Encoder:</p>
+<h4>A. MLP (Baseline)</h4>
+<ul>
+<li><strong>Structure</strong>: Feature Encoder $\rightarrow$ Fully Connected (FC) Layer $\rightarrow$ LayerNorm $\rightarrow$ ReLU $\rightarrow$ Heads.</li>
+<li><strong>Characteristics</strong>: Stateless. Decisions are based purely on the immediate snapshot of traffic.</li>
+<li><strong>Role</strong>: Serves as a baseline to quantify the value of temporal memory.</li>
+</ul>
+<h4>B. GRU (Recurrent)</h4>
+<ul>
+<li><strong>Structure</strong>: Feature Encoder $\rightarrow$ <strong>GRUCell</strong> (Hidden Size 64) $\rightarrow$ Heads.</li>
+<li><strong>Characteristics</strong>: Maintains a hidden state vector $h_t$ that evolves over time.</li>
+<li><strong>Role</strong>: Lightweight memory, capable of capturing short-term traffic dynamics (e.g., "queue was growing").</li>
+</ul>
+<h4>C. LSTM (Recurrent / Classic)</h4>
+<ul>
+<li><strong>Structure</strong>: Feature Encoder $\rightarrow$ <strong>LSTMCell</strong> (Hidden Size 64) $\rightarrow$ Heads.</li>
+<li><strong>Characteristics</strong>: Uses both hidden state $h_t$ and cell state $c_t$ to manage long-term dependencies.</li>
+<li><strong>Role</strong>: The architecture used in the original MA2C paper. Robust but computationally heavier than GRU.</li>
+</ul>
+<h4>D. Transformer (Attention)</h4>
+<ul>
+<li><strong>Structure</strong>: Feature Encoder $\rightarrow$ Sliding Window Buffer (Seq Len 16) $\rightarrow$ <strong>TransformerEncoder</strong> $\rightarrow$ Heads.</li>
+<li><strong>Implementation</strong>: <ul>
+<li>maintains a FIFO buffer of the last 16 observations.</li>
+<li>Applies <strong>Positional Encodings</strong> to retain temporal order.</li>
+<li>Uses <strong>Causal Masking</strong> in the Self-Attention layer to prevent looking into the future.</li>
+</ul>
+</li>
+<li><strong>Role</strong>: Explicitly attends to specific past events (e.g., "10 seconds ago, neighbor cleared a platoon") rather than compressing everything into a fixed vector.</li>
+</ul>
+<h3>Neptune Trial IDs (Reference)</h3>
+<p><strong>Workspace</strong>: sathyakumar/Tensorcell-test</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Run ID</th>
+<th style="text-align: left;">Architecture</th>
+<th style="text-align: left;">Composition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>TEN-101</strong></td>
+<td style="text-align: left;"><strong>MLP</strong></td>
+<td style="text-align: left;">FC + LayerNorm</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-102</strong></td>
+<td style="text-align: left;"><strong>GRU</strong></td>
+<td style="text-align: left;">GRUCell</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-103</strong></td>
+<td style="text-align: left;"><strong>LSTM</strong></td>
+<td style="text-align: left;">LSTMCell</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-104</strong></td>
+<td style="text-align: left;"><strong>Transformer</strong></td>
+<td style="text-align: left;">Sliding Window (16) + Self-Attention</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. Training Progress</h2>
+<h3>Reward Curves</h3>
+<p>Lower (more negative) reward implies higher queues/wait times. Ideally, the curve should rise towards 0.</p>
+<p><img alt="IMA2C Training Rewards" src="plots/ima2c_training_rewards.png" /></p>
+<p><strong>Observations</strong>:
+- <strong>Transformer</strong> and <strong>GRU</strong> (Memory-based models) ended up performing best, validating the hypothesis that temporal context requires recurrence or attention.
+- <strong>MLP</strong> and <strong>LSTM</strong> converged to identical performance, slightly worse than GRU/Transformer. The identical performance suggests the LSTM cell may have saturated or behaved linearly in this specific setup.
+- <strong>Transformer</strong> showed the most consistent learning curve, steadily improving throughout the 55 episodes.</p>
+<hr />
+<h2>4. Evaluation Results: Throughput &amp; Delays</h2>
+<h3>Final Performance (Episode 55 - Validation)</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Model</th>
+<th style="text-align: center;">Throughput (Veh)</th>
+<th style="text-align: center;">Delay Index (TTI)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>GRU</strong></td>
+<td style="text-align: center;">3125</td>
+<td style="text-align: center;"><strong>3.41</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Transformer</strong></td>
+<td style="text-align: center;">3127</td>
+<td style="text-align: center;">3.45</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MLP</strong></td>
+<td style="text-align: center;"><strong>3128</strong></td>
+<td style="text-align: center;">3.51</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>LSTM</strong></td>
+<td style="text-align: center;"><strong>3128</strong></td>
+<td style="text-align: center;">3.51</td>
+</tr>
+</tbody>
+</table>
+<p><em>Note: Episode 55 represents the final validation checkpoint. Metrics are standardized: Throughput (Completed Vehicles) and TTI (Travel Time Index).</em></p>
+<h3>Combined Metrics (Wait &amp; Queue)</h3>
+<p>The following plot shows the average wait time and queue length across all validation episodes.</p>
+<p><img alt="IMA2C Combined Metrics" src="plots/ima2c_combined_metrics.png" /></p>
+<h3>Key Findings</h3>
+<ol>
+<li><strong>Memory Matters</strong>: Both <strong>GRU</strong> and <strong>Transformer</strong> outperformed the memory-less <strong>MLP</strong>, confirming that capturing temporal traffic patterns (e.g., growing queues) is beneficial.</li>
+<li><strong>Efficiency</strong>: <strong>GRU</strong> achieved the best efficiency (Delay Index <strong>3.41</strong>), suggesting that its simpler recurrent structure might be slightly more sample-efficient than the Transformer (3.45) given the limited training data (55 episodes).</li>
+<li><strong>Performance Gap</strong>: While improved, the IMA2C Delay Index (~3.4) still lags behind the fully tuned IDQN (~2.38), indicating room for hyperparameter optimization.</li>
+</ol>
+<hr />
+<h2>5. COMPARISON: IMA2C vs IDQN vs IPPO</h2>
+<p>Comparing the best configurations from all three agent types:</p>
+<h3>Summary of Best Configurations (Averaged Over Training)</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Agent</th>
+<th style="text-align: left;">Best Net</th>
+<th style="text-align: center;">Throughput (Veh/Ep)</th>
+<th style="text-align: center;">Delay (Index)*</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>IDQN</strong></td>
+<td style="text-align: left;">MLP</td>
+<td style="text-align: center;"><strong>3321</strong></td>
+<td style="text-align: center;"><strong>3.51</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>IPPO</strong></td>
+<td style="text-align: left;">Default</td>
+<td style="text-align: center;"><strong>3341</strong></td>
+<td style="text-align: center;"><strong>4.09</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>IMA2C</strong></td>
+<td style="text-align: left;">Transformer</td>
+<td style="text-align: center;"><strong>3300</strong></td>
+<td style="text-align: center;"><strong>4.41</strong></td>
+</tr>
+</tbody>
+</table>
+<p><em>*Note: Delay Index (Travel Time Index) = Average Ratio of Actual Travel Time to Free Flow Time. Lower is better. IDQN achieving 3.51 implies travel takes ~3.5x longer than ideal.</em></p>
+<h3>Comparative Analysis: IMA2C vs IDQN vs IPPO</h3>
+<p>The plot below presents a head-to-head comparison of the top-performing configurations from each algorithm. Metrics (Throughput and Delay Index) are derived directly from standardized simulation logs (<code>tripinfo.xml</code>) to ensure consistency.</p>
+<h4>Models Compared (6 Lines)</h4>
+<ol>
+<li><strong>IDQN - MLP</strong>: Independent DQN with fully connected layers.</li>
+<li><strong>IDQN - DoubleConv</strong>: Independent DQN using convolutional input processing.</li>
+<li><strong>IPPO - Default</strong>: Independent PPO with standard architecture.</li>
+<li><strong>IPPO - GNN</strong>: Independent PPO using Graph Neural Networks for state encoding.</li>
+<li><strong>IMA2C - Transformer</strong>: Actor-Critic with Transformer-based temporal attention.</li>
+<li><strong>IMA2C - GRU</strong>: Actor-Critic using Gated Recurrent Units for temporal memory.</li>
+</ol>
+<blockquote>
+<p>[!NOTE]
+<strong>Performance Observations</strong>:
+- <strong>Efficiency (Delay Index)</strong>: IDQN remains the most efficient, achieving a <strong>Delay Index of ~3.5</strong> (meaning travel takes 3.5x the ideal free-flow time). IPPO follows at ~4.1, and IMA2C trails at ~4.4.
+- <strong>Capacity (Throughput)</strong>: all algorithms handle similar traffic volumes (~3300 vehicles/episode), suggesting no major bottlenecks in capacity, but significant differences in travel speed.
+- <strong>Stability</strong>: IDQN consistently maintains the lowest travel time ratio across episodes.</p>
+</blockquote>
+<p><img alt="Comparison: IMA2C vs IDQN vs IPPO" src="plots/algo_comparison_full.png" /></p>
+<h3>Conclusions</h3>
+<ol>
+<li><strong>IDQN Superiority</strong>: The independent DQN approach remains the most effective for minimizing travel time delay (lowest TTI).</li>
+<li><strong>Architecture Impact</strong>: Use of memory (Transformer/GRU) in IMA2C improves upon the baseline MLP but the overall policy efficiency still lags behind IDQN and IPPO.</li>
+<li><strong>Future Work</strong>: Tuning hyperparameters (learning rate, entropy) via Optuna is recommended to bridge the efficiency gap.</li>
+</ol>
+<hr /></body></html>

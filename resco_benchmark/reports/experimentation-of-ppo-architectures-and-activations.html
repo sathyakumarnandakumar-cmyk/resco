@@ -1,0 +1,181 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>experimentation-of-ppo-architectures-and-activations.md</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; color: #24292e; max_width: 900px; margin: 0 auto; padding: 20px; }
+h1, h2, h3 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
+h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+code { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; margin: 0; padding: 0.2em 0.4em; }
+pre { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; line-height: 1.45; overflow: auto; padding: 16px; }
+pre code { background-color: transparent; border: 0; display: inline; line-height: inherit; margin: 0; overflow: visible; padding: 0; word-wrap: normal; }
+table { border-collapse: collapse; border-spacing: 0; display: block; overflow: auto; width: 100%; margin-top: 0; margin-bottom: 16px; }
+table tr { background-color: #fff; border-top: 1px solid #c6cbd1; }
+table tr:nth-child(2n) { background-color: #f6f8fa; }
+table th, table td { border: 1px solid #dfe2e5; padding: 6px 13px; }
+table th { font-weight: 600; }
+blockquote { border-left: 0.25em solid #dfe2e5; color: #6a737d; padding: 0 1em; margin: 0; }
+img { max-width: 100%; box-sizing: content-box; background-color: #fff; }
+</style>
+</head><body><h1>Experimentation: PPO Model Architectures &amp; Activation Functions</h1>
+<p><strong>Date</strong>: Feb 15, 2026<br />
+<strong>Agent</strong>: IPPO (Independent Proximal Policy Optimization)<br />
+<strong>Environment</strong>: BB5B (Malaysia Map)<br />
+<strong>Experiment Group</strong>: PPO Batch (55 Episodes)</p>
+<h2>1. Introduction</h2>
+<p>This report analyzes the performance of the <strong>Independent PPO (IPPO)</strong> agent across four neural network architectures and two activation functions. We compare these results directly against the previously benchmarked <strong>IDQN</strong> agent to evaluate the efficacy of policy gradient methods versus value-based methods in this traffic control scenario.</p>
+<hr />
+<h2>2. Model Architectures</h2>
+<p>The <strong>IPPO</strong> agent uses an Actor-Critic architecture where each intersection independently learns a policy $\pi(a|s)$ and a value function $V(s)$.</p>
+<h3>Neural Network Variants</h3>
+<p>Tested with <strong>ReLU</strong> and <strong>Leaky ReLU</strong> activations:
+1.  <strong>Default</strong>: Shallow CNN (1 Conv + 2 FC).
+2.  <strong>Double Conv</strong>: Deeper CNN (2 Conv + 2 FC).
+3.  <strong>MLP (v2)</strong>: Deep Fully Connected (5 layers, 256 units, LayerNorm).
+4.  <strong>GNN (v2)</strong>: Multi-Head Attention (4 heads, Residuals, LayerNorm).</p>
+<h3>Neptune Trial IDs (Reference)</h3>
+<p><strong>Workspace</strong>: sathyakumar/Tensorcell-test
+<a href="https://app.neptune.ai/sathyakumar/Tensorcell-test/">Neptune Dashboard</a> | <strong>Seed=1</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Run ID</th>
+<th style="text-align: left;">Net</th>
+<th style="text-align: left;">Activation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>TEN-91</strong></td>
+<td style="text-align: left;">default</td>
+<td style="text-align: left;">relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-92</strong></td>
+<td style="text-align: left;">double_conv</td>
+<td style="text-align: left;">relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-93</strong></td>
+<td style="text-align: left;">mlp</td>
+<td style="text-align: left;">relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-94</strong></td>
+<td style="text-align: left;">gnn</td>
+<td style="text-align: left;">relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-95</strong></td>
+<td style="text-align: left;">default</td>
+<td style="text-align: left;">leaky_relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-96</strong></td>
+<td style="text-align: left;">double_conv</td>
+<td style="text-align: left;">leaky_relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-97</strong></td>
+<td style="text-align: left;">mlp</td>
+<td style="text-align: left;">leaky_relu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-98</strong></td>
+<td style="text-align: left;">gnn</td>
+<td style="text-align: left;">leaky_relu</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. Training Progress (Rewards)</h2>
+<p>Average rewards (INFMain, PBB, SIRIM) smoothed over training steps.</p>
+<p><img alt="PPO Training Rewards" src="plots/ppo_training_rewards.png" /></p>
+<p><strong>Observation</strong>: PPO training is significantly more volatile than IDQN. <code>mlp_leaky_relu</code> and <code>gnn_leaky_relu</code> show the most consistent improvement, while ReLU variants appear more unstable or stagnant in later stages.</p>
+<hr />
+<h2>4. Evaluation Results: Throughput &amp; Delays</h2>
+<p><img alt="PPO Throughput and Delays" src="plots/ppo_combined_metrics.png" /></p>
+<h3>Performance Matrix (Final Validation Point - Ep 55)</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Model Combination</th>
+<th style="text-align: center;">Throughput (Veh)</th>
+<th style="text-align: center;">Delay Index (TTI)*</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Default (CNN) + Leaky ReLU</strong></td>
+<td style="text-align: center;"><strong>3283</strong></td>
+<td style="text-align: center;"><strong>3.27</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GNN + Leaky ReLU</strong></td>
+<td style="text-align: center;">3276</td>
+<td style="text-align: center;">3.38</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Double Conv + Leaky ReLU</strong>*</td>
+<td style="text-align: center;">3101</td>
+<td style="text-align: center;">4.07</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MLP + Leaky ReLU</strong></td>
+<td style="text-align: center;">3226</td>
+<td style="text-align: center;">3.67</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Default + Relu</strong></td>
+<td style="text-align: center;">3269</td>
+<td style="text-align: center;">3.42</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MLP + ReLU</strong></td>
+<td style="text-align: center;">3238</td>
+<td style="text-align: center;">3.78</td>
+</tr>
+</tbody>
+</table>
+<p><em>*Note: Delay Index (Travel Time Index) = Average Ratio of Actual Travel Time to Free Flow Time. Lower is better. A value of 3.27 means travel takes ~3.3x the ideal time. This metric was previously labeled "Avg Delay (s)" but inspection confirmed it is a ratio.</em></p>
+<h3>Training Average Performance (All Episodes)</h3>
+<p>For consistent comparison with IDQN and IMA2C, we report the average performance across all 55 training episodes:
+- <strong>Throughput</strong>: ~3341 Veh/Episode
+- <strong>Delay Index (TTI)</strong>: ~4.09
+- <em>Note: IPPO shows high variance, and training averages reflect the exploration noise.</em></p>
+<hr />
+<h2>5. COMPARISON: IPPO vs IDQN</h2>
+<h3>Head-to-Head Performance (Top 4 Models)</h3>
+<p><img alt="IPPO vs IDQN Comparison" src="plots/ippo_vs_idqn_comparison.png" /></p>
+<p>Comparing the best configurations from both agents:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Metric</th>
+<th style="text-align: center;"><strong>Best IDQN</strong> (MLP+ReLU)</th>
+<th style="text-align: center;"><strong>Best IPPO</strong> (Default+LeakyReLU)</th>
+<th style="text-align: center;">Difference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Throughput</strong></td>
+<td style="text-align: center;"><strong>3470</strong></td>
+<td style="text-align: center;">3283</td>
+<td style="text-align: center;">IDQN +5.7%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Delay Index</strong></td>
+<td style="text-align: center;"><strong>2.38</strong></td>
+<td style="text-align: center;">3.27</td>
+<td style="text-align: center;">IDQN -27.2%</td>
+</tr>
+</tbody>
+</table>
+<h3>Conclusions</h3>
+<ol>
+<li><strong>IDQN Superiority</strong>: IDQN significantly outperforms IPPO in this environment. It clears <strong>~164 more vehicles</strong> per episode and maintains a <strong>Travel Time Index (TTI)</strong> closer to free-flow (2.38 vs 3.27).</li>
+<li><strong>Activation Sensitivity</strong>: Unlike IDQN which preferred <strong>ReLU</strong>, IPPO shows a preference for <strong>Leaky ReLU</strong>. The Leaky ReLU variants (MLP, GNN) generally achieved higher throughput than their ReLU counterparts, suggesting PPO benefits from the non-zero gradients for negative inputs to prevent dying neurons during policy updates.</li>
+<li><strong>Stability</strong>: IPPO exhibits high variance and lower sample efficiency compared to IDQN. The value-based approach of IDQN appears better suited for the discrete, coordination-heavy nature of traffic signal control in this specific map.</li>
+<li><strong>Architecture Trends</strong>: The <strong>MLP (v2)</strong> architecture consistently ranks top for IDQN, but for PPO, the simpler <strong>Default CNN</strong> and <strong>GNN</strong> models performed best in the final evaluation.</li>
+</ol>
+<p><strong>Hypothesis</strong>: My working hypothesis is that the GNN and deeper MLP architectures introduced too much complexity for the PPO agent to handle efficiently within 55 episodes. Since PPO generally has higher variance than DQN, trying to learn complex graph dependencies (attention weights) while simultaneously optimizing the policy likely made the landscape too difficult to navigate. The agent might have gotten stuck in local optima because it couldn't stabilize the representation learning and the policy updates at the same time. However, this is just my interpretation of the results; it's quite possible that with more extensive hyperparameter tuning or a different initialization strategy, these advanced models could perform much better.</p>
+<hr /></body></html>

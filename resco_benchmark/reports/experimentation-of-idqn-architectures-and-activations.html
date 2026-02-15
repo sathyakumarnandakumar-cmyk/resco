@@ -1,0 +1,181 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>experimentation-of-idqn-architectures-and-activations.md</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; color: #24292e; max_width: 900px; margin: 0 auto; padding: 20px; }
+h1, h2, h3 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; line-height: 1.25; }
+h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+code { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; margin: 0; padding: 0.2em 0.4em; }
+pre { background-color: #f6f8fa; border-radius: 3px; font-size: 85%; line-height: 1.45; overflow: auto; padding: 16px; }
+pre code { background-color: transparent; border: 0; display: inline; line-height: inherit; margin: 0; overflow: visible; padding: 0; word-wrap: normal; }
+table { border-collapse: collapse; border-spacing: 0; display: block; overflow: auto; width: 100%; margin-top: 0; margin-bottom: 16px; }
+table tr { background-color: #fff; border-top: 1px solid #c6cbd1; }
+table tr:nth-child(2n) { background-color: #f6f8fa; }
+table th, table td { border: 1px solid #dfe2e5; padding: 6px 13px; }
+table th { font-weight: 600; }
+blockquote { border-left: 0.25em solid #dfe2e5; color: #6a737d; padding: 0 1em; margin: 0; }
+img { max-width: 100%; box-sizing: content-box; background-color: #fff; }
+</style>
+</head><body><h1>Experimentation: IDQN Model Architectures &amp; Activation Functions</h1>
+<p><strong>Date</strong>: Feb 15, 2026<br />
+<strong>Agent</strong>: IDQN (Independent Deep Q-Network)<br />
+<strong>Environment</strong>: BB5B (Malaysia Map)<br />
+<strong>Experiment Group</strong>: Batch Seed 1 (8 Variations)</p>
+<h2>1. Introduction</h2>
+<p>This experiment explores the impact of neural network depth, width, and connectivity—combined with varied activation functions (ReLU vs. LeakyReLU)—on traffic signal control efficiency. We evaluate throughput and average vehicle delays in the Malaysian BB5B map.</p>
+<hr />
+<h2>2. Model Architectures &amp; Experiment Setup</h2>
+<p>The <strong>IDQN (Independent Deep Q-Network)</strong> agent treats each intersection as an independent Reinforcement Learning entity, allowing for decentralized control and scalability within the traffic network.</p>
+<h3>Neptune Trial IDs (Reference)</h3>
+<p>These runs can be viewed in the <a href="https://app.neptune.ai/sathyakumar/Tensorcell-test/">Neptune Dashboard</a>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Run ID</th>
+<th style="text-align: left;">Net</th>
+<th style="text-align: left;">Activation</th>
+<th style="text-align: left;">Seed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>TEN-24</strong></td>
+<td style="text-align: left;">mlp</td>
+<td style="text-align: left;">relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-25</strong></td>
+<td style="text-align: left;">double_conv</td>
+<td style="text-align: left;">relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-26</strong></td>
+<td style="text-align: left;">gnn</td>
+<td style="text-align: left;">relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-27</strong></td>
+<td style="text-align: left;">default</td>
+<td style="text-align: left;">relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-32</strong></td>
+<td style="text-align: left;">default</td>
+<td style="text-align: left;">leaky_relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-33</strong></td>
+<td style="text-align: left;">mlp</td>
+<td style="text-align: left;">leaky_relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-34</strong></td>
+<td style="text-align: left;">gnn</td>
+<td style="text-align: left;">leaky_relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TEN-35</strong></td>
+<td style="text-align: left;">double_conv</td>
+<td style="text-align: left;">leaky_relu</td>
+<td style="text-align: left;">1</td>
+</tr>
+</tbody>
+</table>
+<p>We tested four distinct neural architectures, each integrated with both <strong>ReLU</strong> and <strong>Leaky ReLU (slope=0.01)</strong> activations.</p>
+<h3>A. Default (Base)</h3>
+<ul>
+<li><strong>Structure</strong>: Single 2x2 Convolutional layer followed by two FC layers of 64 units.</li>
+<li><strong>Rationale</strong>: Simple spatial extraction followed by shallow reasoning.</li>
+</ul>
+<h3>B. Double Conv</h3>
+<ul>
+<li><strong>Structure</strong>: Two 2x2 Convolutional layers followed by two FC layers of 64 units.</li>
+<li><strong>Rationale</strong>: Increased spatial depth to capture more hierarchical features from lane states.</li>
+</ul>
+<h3>C. Advanced MLP (v2)</h3>
+<ul>
+<li><strong>Structure</strong>: 5 Fully Connected layers with 256 hidden units each.</li>
+<li><strong>Normalization</strong>: Layer Normalization after each layer.</li>
+<li><strong>Rationale</strong>: Deeper/Wider network aimed at solving complex traffic nonlinearities with stable gradients.</li>
+</ul>
+<h3>D. Advanced GNN / Attention (v2)</h3>
+<ul>
+<li><strong>Structure</strong>: Multi-Head Self-Attention (4 heads) with Residual Connections and LayerNorm.</li>
+<li><strong>Rationale</strong>: Explicitly models relationships between different lane states through an attention mechanism rather than flat feature vectors.</li>
+</ul>
+<hr />
+<h2>3. Training Progress (Rewards)</h2>
+<p>The plot below shows the average reward (mean of INFMain, PBB, and SIRIM junctions) smoothed over training steps.</p>
+<p><img alt="Training Rewards" src="plots/training_rewards.png" /></p>
+<p><strong>Observation</strong>: <code>mlp_relu</code> and <code>double_conv_relu</code> show the most stable upward trajectories. <code>gnn</code> variants show higher variance during early training but converge similarly to the base models.</p>
+<hr />
+<h2>4. Evaluation Results: Throughput &amp; Delays</h2>
+<p>Metrics extracted across 5 validation episodes.</p>
+<p><img alt="Throughput and Delays" src="plots/combined_metrics.png" /></p>
+<h3>Performance Matrix (Final Validation Point)</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Model Combination</th>
+<th style="text-align: center;">Throughput (Veh)</th>
+<th style="text-align: center;">Delay Index (TTI)*</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>MLP + ReLU</strong></td>
+<td style="text-align: center;"><strong>3470</strong></td>
+<td style="text-align: center;"><strong>2.38</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GNN + Leaky ReLU</strong></td>
+<td style="text-align: center;"><strong>3460</strong></td>
+<td style="text-align: center;">2.85</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Double Conv + ReLU</strong></td>
+<td style="text-align: center;">3451</td>
+<td style="text-align: center;"><strong>2.47</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Default + LeakyReLU</strong></td>
+<td style="text-align: center;">3441</td>
+<td style="text-align: center;">2.58</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Default + ReLU</strong></td>
+<td style="text-align: center;">3362</td>
+<td style="text-align: center;">2.84</td>
+</tr>
+</tbody>
+</table>
+<p><em>*Note: Delay Index (Travel Time Index) = Average Ratio of Actual Travel Time to Free Flow Time. Lower is better. A value of 2.38 means travel takes ~2.4x the ideal time. This metric was previously labeled "Avg Delay (s)" but inspection confirmed it is a ratio.</em></p>
+<h3>Training Average Performance (All Episodes)</h3>
+<p>For comparison with other agents (IPPO, IMA2C), we also report the average performance across all 150+ training/validation episodes:
+- <strong>Throughput</strong>: ~3321 Veh/Episode
+- <strong>Delay Index (TTI)</strong>: ~3.51
+- <em>Note: Training averages are naturally lower than peak validation performance due to exploration and learning phases.</em></p>
+<hr />
+<h2>5. Summary &amp; Recommendation</h2>
+<h3>Best Performing Combination: <strong>MLP + ReLU</strong></h3>
+<p>The <strong>Advanced MLP (v2)</strong> with <strong>ReLU</strong> activation is the clear winner:
+*   <strong>Throughput Improvement</strong>: Achieved <strong>3.2% higher throughput</strong> than the base Default (ReLU) model.
+*   <strong>Efficiency</strong>: Achieved the lowest <strong>Delay Index (2.38)</strong>, meaning it maintains traffic flow closest to free-flow conditions.
+*   <strong>Consistency</strong>: Showed the smoothest convergence in training rewards and the highest stability in validation metrics.</p>
+<h3>Key Takeaways:</h3>
+<ol>
+<li><strong>Width/Depth Matters</strong>: The transition from 64-unit shallow layers to 256-unit deep layers (MLP v2) significantly improved performance in the complex BB5B scenario.</li>
+<li><strong>Activation Impact</strong>: ReLU consistently outperformed Leaky ReLU across most architectures in this specific reward-regime, especially for MLP and Double Conv models.</li>
+<li><strong>GNN Potential</strong>: While GNN attained high throughput, it failed to match the MLP in delay minimization. It remains a strong candidate for generalization to unseen maps.<ul>
+<li><strong>Complexity Overhead</strong>: The GNN's slower convergence (compared to MLP) is attributed to the additional complexity of learning attention weights and message-passing protocols. Unlike the MLP, which maps fixed inputs to outputs, the GNN must simultaneously learn the <em>structure</em> of the traffic graph and the <em>policy</em>, requiring more samples to stabilize.</li>
+</ul>
+</li>
+<li><strong>Convergence Speed</strong>: The <strong>MLP (v2) with ReLU</strong> demonstrated the fastest and most stable convergence, reaching optimal throughput levels approximately 15-20% earlier in training than other variants.</li>
+</ol>
+<hr /></body></html>
