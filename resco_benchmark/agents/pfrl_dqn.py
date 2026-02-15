@@ -24,13 +24,21 @@ class IDQN(IndependentAgent):
             h = conv2d_size_out(obs_space[1])
             w = conv2d_size_out(obs_space[2])
 
+            model_name = kwargs.get("net")
+            if model_name in ["mlp", "gnn"]:
+                h_net = obs_space[1]
+                w_net = obs_space[2]
+            else:
+                h_net = h
+                w_net = w
+
             model = get_net(agent=self.__class__.__name__,
-                            net=kwargs.get("net"),
+                            net=model_name,
                             activation=kwargs.get("activation"),
                             obs_space=obs_space,
                             act_space=act_space,
-                            h=h,
-                            w=w,
+                            h=h_net,
+                            w=w_net,
                             negative_slope=kwargs.get("negative_slope"))()
             self.agents[key] = DQNAgent(config, act_space, model)
 
@@ -45,8 +53,10 @@ class DQNAgent(Agent):
         super().__init__()
 
         self.model = model
-        self.optimizer = torch.optim.Adam(self.model.parameters())
-        replay_buffer = replay_buffers.ReplayBuffer(10000)
+        lr = config.get('LR', 1e-3)  # PyTorch Adam default
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        buffer_size = config.get('REPLAY_BUFFER_SIZE', 50000)
+        replay_buffer = replay_buffers.ReplayBuffer(buffer_size)
 
         if num_agents > 0:
             explorer = SharedEpsGreedy(

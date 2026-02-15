@@ -273,6 +273,8 @@ def fetch_experiment_data(run: neptune.Run):
                 (item.split("Reward: ")[1] for item in tags if "Reward: " in item)
             )
         except StopIteration:
+            print(f"Available params: {params.keys()}")
+            print(f"Available tags: {tags}")
             raise ValueError("No 'reward' value found in params or tags.")
 
     agent = params.get("algorithm")

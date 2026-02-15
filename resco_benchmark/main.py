@@ -5,10 +5,10 @@ import random
 import shutil
 from datetime import datetime
 
-import neptune.new as neptune
+import neptune
 import numpy as np
 import torch
-from neptune.new import Run
+from neptune import Run
 
 from config.agent_config import agent_configs
 from config.map_config import map_configs
@@ -38,6 +38,7 @@ def main():
             "MAXPRESSURE",
             "IDQN",
             "IPPO",
+            "IMA2C",
             "MPLight",
             "MA2C",
             "FMA2C",
@@ -98,10 +99,9 @@ def main():
             "queue_maxwait_neighborhood",
         ],
     )
-    ap.add_argument(
-        "--tr", type=int, default=0
-    )  # Can't multi-thread with libsumo, provide a trial number
+    ap.add_argument("--tr", type=int, default=0)  # Can't multi-thread with libsumo, provide a trial number
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--group_tag", type=str, default=None, help="Tag to group experiments in Neptune")
     args = ap.parse_args()
 
     if args.libsumo and "LIBSUMO_AS_TRACI" not in os.environ:
@@ -138,6 +138,14 @@ def run_trial(args, trial):
         if mdp_map_config is not None:
             mdp_config = mdp_map_config
         mdp_configs[args.agent] = mdp_config
+
+    # IMA2C uses states.ma2c which reads mdp_configs['MA2C'] directly
+    if args.agent == 'IMA2C':
+        ma2c_mdp = mdp_configs.get('MA2C')
+        if ma2c_mdp is not None:
+            ma2c_map = ma2c_mdp.get(args.map)
+            if ma2c_map is not None:
+                mdp_configs['MA2C'] = ma2c_map
 
     agt_config = agent_configs[args.agent]
     alg = agt_config["agent"]
@@ -230,7 +238,7 @@ def run_trial(args, trial):
             env.obs_shape[key],
             2 if key in env.phases else None,
         ]
-    if args.agent == "IDQN" or args.agent == "IPPO":
+    if args.agent in ("IDQN", "IPPO", "IMA2C"):
         agent = alg(
             agt_config,
             obs_act,
@@ -266,7 +274,7 @@ def run_trial(args, trial):
             PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
 
         run = neptune.init_run(
-            name=f"{args.agent}-sumo-v0",
+            name=f"{args.agent}-sumo-{args.map}",
             description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
             tags=[
                 "sumo-v0",
@@ -278,7 +286,7 @@ def run_trial(args, trial):
                 "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
                 "no new vehicles after 1 hour",
                 f"{args.validation_period}",
-            ],
+            ] + ([args.group_tag] if args.group_tag else []),
         )
         run["parameters"] = PARAMS_ALGORITHM
     mode = "training"
@@ -330,7 +338,7 @@ def run_trial(args, trial):
 
     env.close()
 
-    if args.agent in ["IDQN", "IPPO", "STOCHASTIC"] and args.map == "BB5B":
+    if args.agent in ["IDQN", "IPPO", "IMA2C", "STOCHASTIC"] and args.map == "BB5B":
         best_validation_model, zipped_best_model = make_archive(
             dict_with_agents=dict_with_agents, valid_models_dir=agt_config["models_dir"]
         )

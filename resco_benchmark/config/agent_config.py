@@ -6,6 +6,7 @@ from agents.maxwave import MAXWAVE
 from agents.maxpressure import MAXPRESSURE
 from agents.pfrl_dqn import IDQN
 from agents.pfrl_ppo import IPPO
+from agents.pfrl_ma2c import IMA2C
 from agents.mplight import MPLight
 from agents.fma2c import FMA2C
 
@@ -85,7 +86,7 @@ agent_configs = {
         'state': states.drq_norm,
         'reward': rewards.wait_norm,
         'max_distance': 200,
-        'BATCH_SIZE': 32,
+        'BATCH_SIZE': 256,
         'GAMMA': 0.99,
         'EPS_START': 1.0,
         'EPS_END': 0.0,
@@ -97,6 +98,24 @@ agent_configs = {
         'state': states.drq_norm,
         'reward': rewards.wait_norm,
         'max_distance': 200
+    },
+    'IMA2C': {
+        'agent': IMA2C,
+        'state': states.ma2c,
+        'reward': rewards.queue_maxwait_neighborhood,
+        'max_distance': 200,
+        'rmsp_alpha': 0.99,
+        'rmsp_epsilon': 1e-5,
+        'max_grad_norm': 40,
+        'gamma': 0.96,
+        'lr_init': 2.5e-4,
+        'entropy_coef': 0.01,
+        'value_coef': 0.5,
+        'num_hidden': 128,
+        'num_gru': 64,
+        'batch_size': 120,
+        'reward_norm': 2000.0,
+        'reward_clip': 2.0,
     },
     'MPLight': {
         'agent': MPLight,
