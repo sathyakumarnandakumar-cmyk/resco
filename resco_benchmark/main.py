@@ -3,17 +3,15 @@ import multiprocessing as mp
 import os
 import random
 import shutil
-from datetime import datetime
 
-import neptune
 import numpy as np
 import torch
-from neptune import Run
 
 from config.agent_config import agent_configs
 from config.map_config import map_configs
 from config.mdp_config import mdp_configs
 from multi_signal import MultiSignal
+from utils.mlflow_logger import init_mlflow_run, end_mlflow_run, log_metrics, log_model_artifact
 from utils.time_utils import convert_time_range_to_seconds
 
 try:
@@ -22,8 +20,6 @@ try:
     load_dotenv()
 except ModuleNotFoundError:
     pass
-
-START_TIME = datetime.now().strftime("%d_%m_%H_%M")
 
 
 def main():
@@ -101,7 +97,9 @@ def main():
     )
     ap.add_argument("--tr", type=int, default=0)  # Can't multi-thread with libsumo, provide a trial number
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--group_tag", type=str, default=None, help="Tag to group experiments in Neptune")
+    ap.add_argument("--group_tag", type=str, default=None, help="Tag to group experiments in MLflow")
+    ap.add_argument("--description", type=str, default=None, help="Description for the MLflow run")
+    ap.add_argument("--experiment_suffix", type=str, default=None, help="String to append to the MLflow experiment name")
     args = ap.parse_args()
 
     if args.libsumo and "LIBSUMO_AS_TRACI" not in os.environ:
@@ -252,43 +250,8 @@ def run_trial(args, trial):
         agent = alg(agt_config, obs_act, args.map, trial)
     run = None
     if args.map == "BB5B":
-        PARAMS_ALGORITHM = {
-            "action_frequency": env.step_length,
-            "algorithm": args.agent,
-            "number_of_training_episodes": args.eps_val * args.validation_interval
-            - args.eps_val,
-            "number_of_validation_episodes": args.eps_val,
-            "map": args.map,
-            "net": args.net,
-            "reward": args.reward_type,
-            "activation": args.activation,
-            "validation_day": args.validation_day,
-            "validation_period": args.validation_period,
-            "seed": args.seed,
-            "phases": {
-                connection_name: len(phases)
-                for connection_name, phases in env.phases.items()
-            },
-        }
-        if args.activation == "leaky_relu":
-            PARAMS_ALGORITHM["negative_slope"] = args.negative_slope
+        run = init_mlflow_run(args, env, main_dir=os.path.dirname(os.path.abspath(__file__)))
 
-        run = neptune.init_run(
-            name=f"{args.agent}-sumo-{args.map}",
-            description=f"Apply {args.agent} algorithm to the sumo-v0 environment",
-            tags=[
-                "sumo-v0",
-                os.environ.get("NEPTUNE_OWNER_RUNNING_EXPERIMENT"),
-                f"{args.agent}",
-                f"Net: {args.net}",
-                f"Activation: {args.activation}",
-                "stable-baselines3",
-                "4 phases for PBB_Junc and SIRIM_Junc, 3 phases for INFMain_Junc - Full",
-                "no new vehicles after 1 hour",
-                f"{args.validation_period}",
-            ] + ([args.group_tag] if args.group_tag else []),
-        )
-        run["parameters"] = PARAMS_ALGORITHM
     mode = "training"
 
     # A dictionary below stores informations about the most important parameters
@@ -310,7 +273,7 @@ def run_trial(args, trial):
             act = agent.act(obs)
             obs, rew, done, eps, info = env.step(act)
             if args.map == "BB5B":
-                log_metrics(buf_infos=info, run=run, done=done, mode=mode)
+                log_metrics(buf_infos=info, done=done, mode=mode)
             agent.observe(obs, rew, done, info)
 
         if mode == "validation" and args.map == "BB5B":
@@ -342,370 +305,13 @@ def run_trial(args, trial):
         best_validation_model, zipped_best_model = make_archive(
             dict_with_agents=dict_with_agents, valid_models_dir=agt_config["models_dir"]
         )
-        run[f"models/{best_validation_model}"].upload(
-            f"{zipped_best_model}.zip", wait=True
-        )
+        log_model_artifact(f"{zipped_best_model}.zip")
         shutil.rmtree(agt_config["models_dir"])
 
+    if run is not None:
+        end_mlflow_run()
 
-def log_metrics(buf_infos: dict, run: Run, done: bool, mode: str):
-    if not done:
-        run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
-        run["metrics/" + mode + "/action/INFMain_Junc"].log(
-            buf_infos["action"]["INFMain_Junc"]
-        )
-        run["metrics/" + mode + "/action/PBB_Junc"].log(buf_infos["action"]["PBB_Junc"])
-        run["metrics/" + mode + "/action/SIRIM_Junc"].log(
-            buf_infos["action"]["SIRIM_Junc"]
-        )
-        run["metrics/" + mode + "/reward_dict"].log(str(buf_infos["reward"]))
-        run["metrics/" + mode + "/reward/INFMain_Junc"].log(
-            buf_infos["reward"]["INFMain_Junc"]
-        )
-        run["metrics/" + mode + "/reward/PBB_Junc"].log(buf_infos["reward"]["PBB_Junc"])
-        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(
-            buf_infos["reward"]["SIRIM_Junc"]
-        )
-        run["metrics/" + mode + "/current_number_of_vehicles"].log(
-            buf_infos["current_number_of_vehicles"]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes"
-        ].log(
-            buf_infos[
-                "number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes"
-            ]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/number_of_all_halting_vehicles_for_the_last_time_step_in_simulation"
-        ].log(
-            buf_infos[
-                "number_of_all_halting_vehicles_for_the_last_time_step_in_simulation"
-            ]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/waiting_time_all_vehicles_for_the_last_time_step_in_simulation"
-        ].log(
-            buf_infos["waiting_time_all_vehicles_for_the_last_time_step_in_simulation"]
-        )
-        run["metrics/" + mode + "/calculate_average_delta_of_delays_after_action"].log(
-            buf_infos["calculate_average_delta_of_delays_after_action"]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/number_of_vehicles_that_passed_through_the_intersections_in_last_steps"
-        ].log(
-            buf_infos[
-                "number_of_vehicles_that_passed_through_the_intersections_in_last_steps"
-            ]
-        )
-        run[
-            "metrics/" + mode + "/current_average_delays_of_all_vehicles_in_simulation"
-        ].log(buf_infos["current_average_delays_of_all_vehicles_in_simulation"])
-    else:
-        run["metrics/" + mode + "/action_dict"].log(str(buf_infos["action"]))
-        run["metrics/" + mode + "/action/INFMain_Junc"].log(
-            buf_infos["action"]["INFMain_Junc"]
-        )
-        run["metrics/" + mode + "/action/PBB_Junc"].log(buf_infos["action"]["PBB_Junc"])
-        run["metrics/" + mode + "/action/SIRIM_Junc"].log(
-            buf_infos["action"]["SIRIM_Junc"]
-        )
-        run["metrics/" + mode + "/reward_dict"].log(str(buf_infos["reward"]))
-        run["metrics/" + mode + "/reward/INFMain_Junc"].log(
-            buf_infos["reward"]["INFMain_Junc"]
-        )
-        run["metrics/" + mode + "/reward/PBB_Junc"].log(buf_infos["reward"]["PBB_Junc"])
-        run["metrics/" + mode + "/reward/SIRIM_Junc"].log(
-            buf_infos["reward"]["SIRIM_Junc"]
-        )
-        run["metrics/" + mode + "/count_of_all_vehicles_in_simulation"].log(
-            buf_infos["count_of_all_vehicles_in_simulation"]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes"
-        ].log(
-            buf_infos[
-                "number_of_halting_vehicles_for_the_last_time_step_on_the_incoming_lanes"
-            ]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/number_of_all_halting_vehicles_for_the_last_time_step_in_simulation"
-        ].log(
-            buf_infos[
-                "number_of_all_halting_vehicles_for_the_last_time_step_in_simulation"
-            ]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/waiting_time_all_vehicles_for_the_last_time_step_in_simulation"
-        ].log(
-            buf_infos["waiting_time_all_vehicles_for_the_last_time_step_in_simulation"]
-        )
-        run[
-            "metrics/" + mode + "/total_waiting_time_on_the_incoming_lanes_in_episode"
-        ].log(buf_infos["total_waiting_time_on_the_incoming_lanes_in_episode"])
-        run[
-            "metrics/" + mode + "/total_waiting_time_on_the_incoming_lanes_in_episode2"
-        ].log(buf_infos["total_waiting_time_on_the_incoming_lanes_in_episode2"])
-        run["metrics/" + mode + "/count_of_vehicles_completing_journey"].log(
-            buf_infos["count_of_vehicles_completing_journey"]
-        )
-        run["metrics/" + mode + "/total_time_of_journey"].log(
-            buf_infos["total_time_of_journey"]
-        )
-        run["metrics/" + mode + "/average_time_of_journey"].log(
-            buf_infos["average_time_of_journey"]
-        )
-        run[
-            "metrics/" + mode + "/total_sum_delays_of_all_vehicles_from_all_routes"
-        ].log(buf_infos["total_sum_delays_of_all_vehicles_from_all_routes"])
-        run[
-            "metrics/" + mode + "/total_average_delays_of_all_vehicles_from_all_routes"
-        ].log(buf_infos["total_average_delays_of_all_vehicles_from_all_routes"])
-        run["metrics/" + mode + "/total_average_delays_real_times_by_ideal_times"].log(
-            buf_infos["total_average_delays_real_times_by_ideal_times"]
-        )
-        run["metrics/" + mode + "/total_average_delays_with_weights"].log(
-            buf_infos["total_average_delays_with_weights"]
-        )
-        run[
-            "metrics/"
-            + mode
-            + "/total_average_delays_of_all_vehicles_completing_journey_and_not_completing_journey"
-        ].log(
-            buf_infos[
-                "total_average_delays_of_all_vehicles_completing_journey_and_not_completing_journey"
-            ]
-        )
-        chosen_routes = [
-            "Infout-HLin",
-            "PBBN-FMin",
-            "PBBN-SirimS",
-            "PBBN-SirimW",
-            "PBBN-SKE",
-            "PBBW-FMin",
-            "PBBW-SKE",
-            "SirimE-HLin",
-            "SirimS-HLin",
-            "SirimS-PBBN",
-            "SirimW-HLin",
-            "SirimW-SirimE",
-            "SKE-HLin",
-            "SKE-PBBN",
-        ]
-        for route_id in buf_infos["routes"].keys():
-            if route_id in chosen_routes:
-                run["metrics/" + mode + "/routes/" + route_id + "/length"].log(
-                    buf_infos["routes"][route_id]["length"]
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_number_of_all_vehicles_generated-ThruPut_Scheduled"
-                ].log(
-                    buf_infos["routes"][route_id][
-                        "total_number_of_all_vehicles_generated-ThruPut_Scheduled"
-                    ]
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_number_of_all_vehicles_completing_journey-ThruPut_Actual"
-                ].log(
-                    buf_infos["routes"][route_id][
-                        "total_number_of_all_vehicles_completing_journey-ThruPut_Actual"
-                    ]
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/throughput_of_the_route-ThruPut_Idx"
-                ].log(
-                    buf_infos["routes"][route_id]["throughput_of_the_route-ThruPut_Idx"]
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_travel_time_of_all_vehicles"
-                ].log(
-                    str(
-                        buf_infos["routes"][route_id][
-                            "total_travel_time_of_all_vehicles"
-                        ]
-                    )
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_average_travel_time_of_all_vehicles"
-                ].log(
-                    buf_infos["routes"][route_id][
-                        "total_average_travel_time_of_all_vehicles"
-                    ]
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_delays_of_all_vehicles"
-                ].log(
-                    str(buf_infos["routes"][route_id]["total_delays_of_all_vehicles"])
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_average_delays_of_all_vehicles-Delay_Idx_Average"
-                ].log(
-                    buf_infos["routes"][route_id][
-                        "total_average_delays_of_all_vehicles-Delay_Idx_Average"
-                    ]
-                )
-                run["metrics/" + mode + "/routes/" + route_id + "/Delay_Idx_StDev"].log(
-                    buf_infos["routes"][route_id]["Delay_Idx_StDev"]
-                )
-                run[
-                    "metrics/"
-                    + mode
-                    + "/routes/"
-                    + route_id
-                    + "/total_average_delays_of_all_vehicles_with_weights"
-                ].log(
-                    buf_infos["routes"][route_id][
-                        "total_average_delays_of_all_vehicles_with_weights"
-                    ]
-                )
-                """
-                for veh_type in buf_infos["routes"][route_id]["vehicle_type"]:
-                    run[
-                        "metrics/"
-                        + mode
-                        + "/routes/"
-                        + route_id
-                        + "/vehicle_type/"
-                        + veh_type
-                        + "/ideal/travel_time"
-                    ].log(
-                        buf_infos["routes"][route_id]["vehicle_type"][veh_type][
-                            "ideal"
-                        ]["travel_time"]
-                    )
-                    run[
-                        "metrics/"
-                        + mode
-                        + "/routes/"
-                        + route_id
-                        + "/vehicle_type/"
-                        + veh_type
-                        + "/real/number_of_vehicles"
-                    ].log(
-                        buf_infos["routes"][route_id]["vehicle_type"][veh_type]["real"][
-                            "number_of_vehicles"
-                        ]
-                    )
-                    run[
-                        "metrics/"
-                        + mode
-                        + "/routes/"
-                        + route_id
-                        + "/vehicle_type/"
-                        + veh_type
-                        + "/real/total_travel_time"
-                    ].log(
-                        str(
-                            buf_infos["routes"][route_id]["vehicle_type"][veh_type][
-                                "real"
-                            ]["total_travel_time"]
-                        )
-                        if len(
-                            buf_infos["routes"][route_id]["vehicle_type"][veh_type][
-                                "real"
-                            ]["vehicle_id"]
-                        )
-                        != 0
-                        else "0"
-                    )
-                    run[
-                        "metrics/"
-                        + mode
-                        + "/routes/"
-                        + route_id
-                        + "/vehicle_type/"
-                        + veh_type
-                        + "/real/average_travel_time"
-                    ].log(
-                        buf_infos["routes"][route_id]["vehicle_type"][veh_type]["real"][
-                            "average_travel_time"
-                        ]
-                    )
-                    run[
-                        "metrics/"
-                        + mode
-                        + "/routes/"
-                        + route_id
-                        + "/vehicle_type/"
-                        + veh_type
-                        + "/real/delays/total"
-                    ].log(
-                        str(
-                            buf_infos["routes"][route_id]["vehicle_type"][veh_type][
-                                "real"
-                            ]["delays"]["total"]
-                        )
-                        if len(
-                            buf_infos["routes"][route_id]["vehicle_type"][veh_type][
-                                "real"
-                            ]["vehicle_id"]
-                        )
-                        != 0
-                        else "0"
-                    )
-                    run[
-                        "metrics/"
-                        + mode
-                        + "/routes/"
-                        + route_id
-                        + "/vehicle_type/"
-                        + veh_type
-                        + "/real/delays/average"
-                    ].log(
-                        buf_infos["routes"][route_id]["vehicle_type"][veh_type]["real"][
-                            "delays"
-                        ]["average"]
-                        if len(
-                            buf_infos["routes"][route_id]["vehicle_type"][veh_type][
-                                "real"
-                            ]["vehicle_id"]
-                        )
-                        != 0
-                        else 0
-                    )
-                """
+
 
 
 def choose_best_validation_model(dict_with_agents: dict):
