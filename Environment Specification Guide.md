@@ -81,3 +81,24 @@ For the custom `BB5B` environment, the global tensor of non-conflicting traffic 
 
 ### Architectural Anomaly Note for `BB5B`
 In standard benchmark configurations, the keys within the `valid_acts` dictionary strictly correlate to the $0$-indexed positions of the `phase_pairs` array. However, in the `BB5B` configuration, the specific mapping keys (e.g., 7, 10) exceed the length of its 7-element `phase_pairs` array. This indicates that the `BB5B` implementation maps its local actions directly to the absolute traffic movement index primitives (where $1$ maps to S-S, $4$ maps to W-W, $7$ maps to N-N, and $10$ maps to E-E) rather than utilizing the `phase_pairs` array as the intermediary lookup vector.
+
+
+
+## 5. Execution Dynamics and Operational Overrides
+
+The framework utilizes specific runtime overrides and dynamic routing mechanisms that directly impact rollout trajectories, observation bounds, and loss convergence. 
+
+### 5.1 Dynamic Routing and Asymmetric Episode Termination
+The `BB5B` environment eschews a static episode loop in favor of dynamically shifting conditions based on the execution mode.
+* **Stochastic Training vs. Deterministic Validation:** During training (`mode="training"`), the environment dynamically generates a randomized `.rou.xml` route file per episode via a `RoutesGenerator` to prevent the actor network from overfitting to a static traffic distribution. During validation runs, it strictly loads a fixed route file (e.g., `BB5B_7-8am.rou.xml`) to guarantee deterministic benchmark evaluation.
+* **The 240-Second Evaluation Buffer:** Episodes do not terminate exactly at the scheduled `end_time` (e.g., 28800 seconds / 8:00 AM). The environment artificially delays the `done` flag until `sim_step >= (self.end_time + 240)`. This 4-minute buffer allows vehicles spawned in the final seconds of the simulation hour to clear the network, ensuring complete trajectory tracking for accurate travel time and delay metrics.
+
+### 5.2 Observation Constraints and Runtime Hooks
+Static configuration files are subject to silent runtime overrides that modify the reinforcement learning formulation prior to execution.
+* **Spatial Observation Clipping (`max_distance`):** The `drq_norm` state extractor applies a hard visibility threshold on incoming lanes, bounded by `max_distance = 200` meters. Vehicles positioned beyond this upstream radius are completely truncated from the state tensor computation during the `Signal.observe()` routine.
+* **Reward Function Injection:** The `agent_config.py` dictionary assigns a default reward function (e.g., `'reward': rewards.wait_norm` for IDQN). However, the `MultiSignal` initialization routine actively overrides this static binding via a CLI argument (`--reward-type`), which forces the environment to utilize `queue_maxwait` for the BB5B setup.
+
+### 5.3 Custom Evaluation Metrics Pipeline (`info` dict)
+For the `BB5B` topology, the `step()` function executes heavy metric aggregation at the final rollout step, injecting route-level throughput statistics into the standard Gym `info` dictionary.
+* **Throughput-Weighted Delays:** It computes `total_average_delays_of_all_vehicles_with_weights`, a metric that mathematically factors in the ratio of actual vehicles completing the journey against the scheduled throughput generation.
+* **Trajectory Efficiency:** It aggregates the ratio of `total_real_travel_times` against `total_ideal_travel_times` (the theoretical minimum time a vehicle would take at maximum allowed velocity with zero signal interference) for all completed vehicle routes.
